@@ -1,32 +1,45 @@
 module PPCA
 
+using Distributed
 using ExpFamilyDistributions
 using LinearAlgebra
-using StatsFuns: log1pexp
-
-#######################################################################
-# Pólya-Gamma augmentation
-
-export pgaugmentation
-
-include("pgaugment.jl")
 
 #######################################################################
 # Model
 
-export PCCAModel
+export AbstractPPCAModel
 export PPCAModel
+export PPCAModelHP
+export θposteriors
+export hposteriors
 
-include("pcca.jl")
+include("model.jl")
+
+#######################################################################
+# Objective function
+
+export loglikelihood
+export elbo
+
+include("elbo.jl")
+
+#######################################################################
+# Accumulating and update functions
+
+export hposteriors
+export wposteriors!
+export λposterior!
+export αposteriors!
+export wstats
+export λstats
+export αstats
+
+include("accumulators.jl")
 
 #######################################################################
 # Inference
 
-export inferh
-export stats_W
-export stats_λ
-export stats_B
-export loglikelihood
+export fit!
 
 include("inference.jl")
 
