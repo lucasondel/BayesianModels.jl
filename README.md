@@ -7,20 +7,20 @@ described in ["Variational Principal Components Analysis"](https://www.microsoft
 
 You first need to create a `PPCAModel`:
 ```julia
-julia> model = PPCAModel(T, datadim = 2, latentdim = 2)
-PPCAModelHP{Float64,2,1}:
+julia> model = PPCAModel(datadim = 2, latentdim = 2)
+PPCAModelHP{Float64,2,2}:
   αprior:
     ExpFamilyDistributions.Gamma{Float64}:
       α = 0.001
       β = 0.001
   wprior:
+    ExpFamilyDistributions.Normal{Float64,3}:
+      μ = [0.0, 0.0, 0.0]
+      Σ = [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0]
+  hprior:
     ExpFamilyDistributions.Normal{Float64,2}:
       μ = [0.0, 0.0]
       Σ = [1.0 0.0; 0.0 1.0]
-  hprior:
-    ExpFamilyDistributions.Normal{Float64,1}:
-      μ = [0.0]
-      Σ = [1.0]
   λprior:
     ExpFamilyDistributions.Gamma{Float64}:
       α = 0.001
@@ -66,3 +66,5 @@ julia> hposteriors(model, X, θposts)
 ...
 ```
 
+For a complete example, have a look at the [example jupyter notebook](https://github.com/BUTSpeechFIT/PPCA/blob/master/examples/PPCA.ipynb).
+![Alt Text](https://github.com/BUTSpeechFIT/PPCA/blob/master/examples/demo.gif)
