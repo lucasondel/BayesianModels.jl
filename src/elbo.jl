@@ -45,7 +45,16 @@ function elbo(m::PPCAModel, dataloader, θposts; detailed = false)
         hposts = hposteriors(m, X, θposts)
         sum(loglikelihood(m, X, θposts, hposts))
     end
-    KL = sum(kldiv.(θposts[:w], [m.wprior]))
+
+    if typeof(θposts[:w][1]) <: ExpFamilyDistribution
+        KL += sum(kldiv.(θposts[:w], [m.wprior]))
+    else
+        KL -= sum(
+            p -> ExpFamilyDistributions.loglikelihood(m.wprior, p.μ),
+            θposts[:w]
+        )
+    end
+
     KL += kldiv(θposts[:λ], m.λprior)
     detailed ? (L - KL, L, KL) : L - KL
 end
@@ -55,8 +64,19 @@ function elbo(m::PPCAModelHP, dataloader, θposts; detailed = false)
         hposts = hposteriors(m, X, θposts)
         sum(loglikelihood(m, X, θposts, hposts))
     end
-    KL = sum(kldiv.(θposts[:α], [m.αprior]))
-    KL += sum(kldiv.(θposts[:w], [m.wprior]))
+    KL = 0
+
+    KL += sum(kldiv.(θposts[:α], [m.αprior]))
+
+    if typeof(θposts[:w][1]) <: ExpFamilyDistribution
+        KL += sum(kldiv.(θposts[:w], [m.wprior]))
+    else
+        KL -= sum(
+            p -> ExpFamilyDistributions.loglikelihood(m.wprior, p.μ),
+            θposts[:w]
+        )
+    end
+
     KL += kldiv(θposts[:λ], m.λprior)
     detailed ? (L - KL, L, KL) : L - KL
 end

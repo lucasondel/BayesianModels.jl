@@ -36,9 +36,8 @@ function plotmodel!(p, model::AbstractPPCAModel{T,D,Q}, θposts;
     S = (1/λ) * Matrix{T}(I, 2, 2)
     for d in 1:Q
         w = W[1:end-1, :][d, :]
-        w = w / sqrt(w[1]^2 + w[2]^2)
+        w = w / norm(w)
         o = m
-        #plot!(p, [o[1], w[1] + m[1]], [o[2], w[2] + m[2]], arrow = (0.4, 0.4), color = :black)
         plot!(p, [o[1] - 100*w[1], 100*w[1] + m[1]], [o[2] - 100*w[2], 100*w[2] + m[2]], color = :black)
         S += w * w'
     end

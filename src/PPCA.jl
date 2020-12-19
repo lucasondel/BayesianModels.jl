@@ -18,7 +18,6 @@ include("model.jl")
 #######################################################################
 # Objective function
 
-export loglikelihood
 export elbo
 
 include("elbo.jl")

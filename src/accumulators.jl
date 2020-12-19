@@ -68,7 +68,10 @@ function wposteriors!(m::AbstractPPCAModel{T,D,Q}, θposts, accstats) where {T,D
     Σ = Symmetric(inv(Λ₀ + -2*s2))
     for (wpost, s1) in zip(θposts[:w], s1s)
         wpost.μ = Σ * (Λ₀μ₀ + s1)
-        wpost.Σ = Σ
+
+        if typeof(wpost) <: ExpFamilyDistribution
+            wpost.Σ = Σ
+        end
     end
     θposts
 end

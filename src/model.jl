@@ -98,30 +98,27 @@ end
 #######################################################################
 # Initialization of the posteriors
 
-function _stdbasis(T, Q, i)
-    retval = zeros(T, Q+1)
-    retval[i] = 1
-    retval
-end
+function _init_wposts(T, D, Q, w_MAP)
+    # Random initialization of the mean of q(W)
+    w₀s = [vcat(w₀ ./ norm(w₀), 0) for w₀ in eachcol(randn(T, Q, D))]
 
-function _init_wposts(T, D, Q)
     Σ = Symmetric(Matrix{T}(I, Q+1, Q+1))
-    wposts = [Normal(_stdbasis(T, Q, i), Σ) for i in 1:D]
+    wposts = [w_MAP ? δNormal(w₀) : Normal(w₀, Σ) for w₀ in w₀s]
 end
 
 
-function θposteriors(model::PPCAModel{T,D,Q}) where {T,D,Q}
+function θposteriors(model::PPCAModel{T,D,Q}, w_MAP = true) where {T,D,Q}
     Dict(
         :w => _init_wposts(T, D, Q),
         :λ => Gamma{T}(model.λprior.α, model.λprior.β)
     )
 end
 
-function θposteriors(model::PPCAModelHP{T,D,Q}) where {T,D,Q}
+function θposteriors(model::PPCAModelHP{T,D,Q}; w_MAP = true) where {T,D,Q}
     Dict(
         :α => [Gamma{T}(model.αprior.α, model.αprior.β) for i in 1:Q+1],
-        :w => _init_wposts(T, D, Q),
-        :λ => Gamma{T}(model.λprior.α, model.λprior.β)
+        :w => _init_wposts(T, D, Q, w_MAP),
+        :λ => Gamma{T}(model.λprior.α, model.λprior.β),
     )
 end
 
