@@ -46,6 +46,8 @@ function elbo(m::PPCAModel, dataloader, θposts; detailed = false)
         sum(loglikelihood(m, X, θposts, hposts))
     end
 
+    KL = 0
+
     if typeof(θposts[:w][1]) <: ExpFamilyDistribution
         KL += sum(kldiv.(θposts[:w], [m.wprior]))
     else

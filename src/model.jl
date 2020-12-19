@@ -107,9 +107,9 @@ function _init_wposts(T, D, Q, w_MAP)
 end
 
 
-function θposteriors(model::PPCAModel{T,D,Q}, w_MAP = true) where {T,D,Q}
+function θposteriors(model::PPCAModel{T,D,Q}; w_MAP = true) where {T,D,Q}
     Dict(
-        :w => _init_wposts(T, D, Q),
+        :w => _init_wposts(T, D, Q, w_MAP),
         :λ => Gamma{T}(model.λprior.α, model.λprior.β)
     )
 end
