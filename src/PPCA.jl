@@ -12,6 +12,7 @@ export PPCAModel
 export PPCAModelHP
 export θposteriors
 export hposteriors
+export update_hposteriors!
 
 include("model.jl")
 

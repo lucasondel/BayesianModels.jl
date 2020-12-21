@@ -24,6 +24,13 @@ function _hstats(m::AbstractPPCAModel{T,D,Q}, x::AbstractVector, Tŵ, Tλ) wher
 end
 
 function hposteriors(m::AbstractPPCAModel{T,D,Q}, X, θposts) where {T,D,Q}
+    # Just some place holder to initialize the Normals.
+    Σ, μ = Symmetric(Matrix{T}(undef, Q, Q)), Vector{T}(undef, Q)
+    hposts = [Normal(μ, Σ) for _ in 1:length(X)]
+    update_hposteriors!(hposts, m, X, θposts)
+end
+
+function update_hposteriors!(hposts, m::AbstractPPCAModel{T,D,Q}, X, θposts) where {T,D,Q}
     Tŵ = [gradlognorm(p, vectorize = false) for p in θposts[:w]]
     Tλ = gradlognorm(θposts[:λ], vectorize = false)
     M = _hstats.([m], X, [Tŵ], [Tλ])
@@ -31,7 +38,11 @@ function hposteriors(m::AbstractPPCAModel{T,D,Q}, X, θposts) where {T,D,Q}
     Λ₀ = inv(m.hprior.Σ)
     Λ₀μ₀ = Λ₀ * m.hprior.μ
     Σ = Symmetric(inv(Λ₀ + Tλ[1]*sum(a -> a[2][1:Q, 1:Q], Tŵ)))
-    [Normal(Σ * (Λ₀μ₀ + m), Σ) for m in M]
+    for (p, m) in zip(hposts, M)
+        p.μ = Σ * (Λ₀μ₀ + m)
+        p.Σ = Σ
+    end
+    hposts
 end
 
 #######################################################################
