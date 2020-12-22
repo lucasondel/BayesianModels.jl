@@ -10,55 +10,50 @@ abstract type AbstractPPCAModel{T,D,Q} end
 
 """
     struct PPCAModel{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-        αprior      # hyper-prior over the bases
-        wprior      # Prior over the bases
-        hprior      # Prior over the embeddings
-        λprior      # Prior over the precision
+        w   # Prior over the bases
+        h   # Prior over the embeddings
+        λ   # Prior over the precision
     end
 
 Standard PPCA model.
 """
 struct PPCAModel{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-    wprior::Normal{T,V} where V # V = Q + 1
-    hprior::Normal{T,Q}
-    λprior::Gamma{T}
+    w::Normal{T,V} where V # V = Q + 1
+    h::Normal{T,Q}
+    λ::Gamma{T}
 end
 
 """
     struct PPCAModelHP{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-        αprior      # hyper-prior over the bases
-        wprior      # Prior over the bases
-        hprior      # Prior over the embeddings
-        λprior      # Prior over the precision
+        α   # Hyper-prior over the bases
+        w   # Prior over the bases
+        h   # Prior over the embeddings
+        λ   # Prior over the precision
     end
 
 PPCA model with a hyper-prior over the variance of the prior over the
 bases.
 """
 struct PPCAModelHP{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-    αprior::Gamma{T}
-    wprior::Normal{T,V} where V # V = Q + 1
-    hprior::Normal{T,Q}
-    λprior::Gamma{T}
+    α::Gamma{T}
+    w::Normal{T,V} where V # V = Q + 1
+    h::Normal{T,Q}
+    λ::Gamma{T}
 end
 
 function PPCAModel(T::Type{<:AbstractFloat}; datadim, latentdim,
                    pstrength = 1e-3, hyperprior = true)
     D, Q = datadim, latentdim
 
+    λ = Gamma{T}(pstrength, pstrength)
+    w = Normal(zeros(T, Q+1), Symmetric(Matrix{T}(I, Q+1, Q+1)))
+    h = Normal(zeros(T, Q), Symmetric(Matrix{T}(I, Q, Q)))
+
     if hyperprior
-        return PPCAModelHP{T,D,Q}(
-            Gamma{T}(pstrength, pstrength),
-            Normal(zeros(T, Q+1), Symmetric(Matrix{T}(I, Q+1, Q+1))),
-            Normal(zeros(T, Q), Symmetric(Matrix{T}(I, Q, Q))),
-            Gamma{T}(pstrength, pstrength)
-        )
+        α = Gamma{T}(pstrength, pstrength)
+        return PPCAModelHP{T,D,Q}(α, w, h, λ)
     else
-        return PPCAModel{T,D,Q}(
-            Normal(zeros(T, Q+1), Symmetric(Matrix{T}(I, Q+1, Q+1))),
-            Normal(zeros(T, Q), Symmetric(Matrix{T}(I, Q, Q))),
-            Gamma{T}(pstrength, pstrength)
-        )
+        return PPCAModel{T,D,Q}(w, h, λ)
     end
 end
 PPCAModel(;datadim, latentdim, pstrength = 1e-3,
@@ -72,27 +67,26 @@ PPCAModel(;datadim, latentdim, pstrength = 1e-3,
 # Pretty print
 
 function Base.show(io::IO, ::MIME"text/plain", model::PPCAModelHP)
-    cindent = get(io, :indent, 0)
     println(io, typeof(model), ":")
-    println(io, " "^(cindent+2), "αprior:")
-    println(IOContext(io, :indent => cindent+4), model.αprior)
+    println(io, "  α:")
+    println(IOContext(io, :indent => cindent+4), model.α)
     println(io, " "^(cindent+2), "wprior:")
-    println(IOContext(io, :indent => cindent+4), model.wprior)
+    println(IOContext(io, :indent => cindent+4), model.w)
     println(io, " "^(cindent+2), "hprior:")
-    println(IOContext(io, :indent => cindent+4), model.hprior)
+    println(IOContext(io, :indent => cindent+4), model.h)
     println(io, " "^(cindent+2), "λprior:")
-    println(IOContext(io, :indent => cindent+4), model.λprior)
+    println(IOContext(io, :indent => cindent+4), model.λ)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", model::PPCAModel)
     cindent = get(io, :indent, 0)
     println(io, typeof(model), ":")
     println(io, " "^(cindent+2), "wprior:")
-    println(IOContext(io, :indent => cindent+4), model.wprior)
+    println(IOContext(io, :indent => cindent+4), model.w)
     println(io, " "^(cindent+2), "hprior:")
-    println(IOContext(io, :indent => cindent+4), model.hprior)
+    println(IOContext(io, :indent => cindent+4), model.h)
     println(io, " "^(cindent+2), "λprior:")
-    println(IOContext(io, :indent => cindent+4), model.λprior)
+    println(IOContext(io, :indent => cindent+4), model.λ)
 end
 
 #######################################################################
@@ -106,19 +100,24 @@ function _init_wposts(T, D, Q, w_MAP)
     wposts = [w_MAP ? δNormal(w₀) : Normal(w₀, Σ) for w₀ in w₀s]
 end
 
+function _init_gamma(T, α, β, MAP)
+    MAP ? δGamma{T}(α/β) : Gamma{T}(α, β)
+end
 
-function θposteriors(model::PPCAModel{T,D,Q}; w_MAP = true) where {T,D,Q}
+function θposteriors(model::PPCAModel{T,D,Q}; w_MAP = true,
+                     λ_MAP = false) where {T,D,Q}
     Dict(
         :w => _init_wposts(T, D, Q, w_MAP),
-        :λ => Gamma{T}(model.λprior.α, model.λprior.β)
+        :λ => _init_gamma(T, model.λ.α, model.λ.β, λ_MAP)
     )
 end
 
-function θposteriors(model::PPCAModelHP{T,D,Q}; w_MAP = true) where {T,D,Q}
+function θposteriors(model::PPCAModelHP{T,D,Q}; w_MAP = false, λ_MAP = false,
+                     α_MAP = false) where {T,D,Q}
     Dict(
-        :α => [Gamma{T}(model.αprior.α, model.αprior.β) for i in 1:Q+1],
+        :α => [_init_gamma(T, model.α.α, model.α.β, α_MAP) for i in 1:Q+1],
         :w => _init_wposts(T, D, Q, w_MAP),
-        :λ => Gamma{T}(model.λprior.α, model.λprior.β),
+        :λ => _init_gamma(T, model.λ.α, model.λ.β, λ_MAP)
     )
 end
 
@@ -131,4 +130,42 @@ corresponding parameter. The `α` parameter is only added when the
 model is a [`PPCAModelHP`](@ref).
 """
 θposteriors
+
+#######################################################################
+# Log-likelihood
+
+# Per dimension log-likelihood
+function _llh_d(x, Tŵ, Tλ, Th)
+    λ, lnλ = Tλ
+    h, hhᵀ = Th
+
+    # Extract the bias parameter
+    wwᵀ = Tŵ[2][1:end-1, 1:end-1]
+    w = Tŵ[1][1:end-1]
+    μ = Tŵ[1][end]
+    μ² = Tŵ[2][end, end]
+
+    x̄ = dot(w, h) + μ
+    lognorm = (-log(2π) + lnλ - λ*(x^2))/2
+    K = λ*(x̄*x - dot(w, h)*μ - (dot(vec(hhᵀ), vec(wwᵀ)) + μ²)/2)
+
+    lognorm + K
+end
+
+function _llh(x, Tŵs, Tλ, Th)
+    f = (a,b) -> begin
+        xᵢ, Tŵᵢ = b
+        a + _llh_d(xᵢ, Tŵᵢ, Tλ, Th)
+    end
+    return foldl(f, zip(x, Tŵs), init = 0)
+end
+
+function loglikelihood(m::AbstractPPCAModel, X, θposts, hposts)
+    _llh.(
+        X,
+        [[gradlognorm(p, vectorize = false) for p in θposts[:w] ]],
+        [gradlognorm(θposts[:λ], vectorize = false)],
+        [gradlognorm(p, vectorize = false) for p in hposts]
+   ) - cost_reg.(hposts, [m.h])
+end
 

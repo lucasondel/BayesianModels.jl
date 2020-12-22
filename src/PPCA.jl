@@ -1,8 +1,17 @@
 module PPCA
 
+using BasicDataLoaders
 using Distributed
 using ExpFamilyDistributions
 using LinearAlgebra
+
+#######################################################################
+# Objective function
+
+export elbo
+export cost_reg
+
+include("elbo.jl")
 
 #######################################################################
 # Model
@@ -15,13 +24,6 @@ export hposteriors
 export update_hposteriors!
 
 include("model.jl")
-
-#######################################################################
-# Objective function
-
-export elbo
-
-include("elbo.jl")
 
 #######################################################################
 # Accumulating and update functions
