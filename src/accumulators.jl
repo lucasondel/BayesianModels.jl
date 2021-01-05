@@ -23,20 +23,52 @@ function _hstats(m::AbstractPPCAModel{T,D,Q}, x::AbstractVector, Tŵ, Tλ) wher
     foldl(f, zip(x, Tŵ), init = zeros(T, Q))
 end
 
-function hposteriors(m::AbstractPPCAModel{T,D,Q}, X, θposts; MAP = false) where {T,D,Q}
+function hstats(m::AbstractPPCAModel{T,D,Q}, X, θposts) where {T,D,Q}
+    Tŵ = [gradlognorm(p, vectorize = false) for p in θposts[:w]]
+    Tλ = gradlognorm(θposts[:λ], vectorize = false)
+    S₁ = _hstats.([m], X, [Tŵ], [Tλ])
+    S₂ = Tλ[1]*sum(a -> a[2][1:Q, 1:Q], Tŵ)
+    S₁, S₂
+end
+
+function hstats(m::AbstractPPCAModel{T,D,Q}, X, z, θposts) where {T,D,Q}
     Tŵ = [gradlognorm(p, vectorize = false) for p in θposts[:w]]
     Tλ = gradlognorm(θposts[:λ], vectorize = false)
     M = _hstats.([m], X, [Tŵ], [Tλ])
+    S₁ = Dict{eltype(z), Tuple{eltype(X), Int64}}()
+    for (zᵢ, mᵢ) in zip(z, M)
+        v, c = get(S₁, zᵢ, (zero(mᵢ), 0))
+        S₁[zᵢ] = (v + mᵢ, c + 1)
+    end
+    S₂ = Tλ[1]*sum(a -> a[2][1:Q, 1:Q], Tŵ)
+    S₁, S₂
+end
 
+function hposteriors(m::AbstractPPCAModel, X, θposts; MAP = false)
+    S₁, S₂ = hstats(m, X, θposts)
     Λ₀ = inv(m.h.Σ)
     Λ₀μ₀ = Λ₀ * m.h.μ
-    Σ = Symmetric(inv(Λ₀ + Tλ[1]*sum(a -> a[2][1:Q, 1:Q], Tŵ)))
-
+    Σ = Symmetric(inv(Λ₀ + S₂))
     if MAP
-        [δNormal(Σ * (Λ₀μ₀ + μ)) for μ in M]
+        [δNormal(Σ * (Λ₀μ₀ + mᵢ)) for mᵢ in S₁]
     else
-        [Normal(Σ * (Λ₀μ₀ + μ), Σ) for μ in M]
+        [Normal(Σ * (Λ₀μ₀ + mᵢ), Σ) for mᵢ in S₁]
     end
+end
+
+function hposteriors(m::AbstractPPCAModel{T,D,Q}, X, z, θposts; MAP = false) where {T,D,Q}
+    S₁, S₂ = hstats(m, X, z, θposts)
+    Λ₀ = inv(m.h.Σ)
+    Λ₀μ₀ = Λ₀ * m.h.μ
+    pT = MAP ? δNormal : Normal
+    posts = Dict{eltype(z), pT{T,Q}}()
+    for k in keys(S₁)
+        v, c = S₁[k]
+        Σ = Symmetric(inv(Λ₀ + c*S₂))
+        μ = Σ * (Λ₀μ₀ + v)
+        posts[k] = MAP ? pT(μ) : pT(μ, Σ)
+    end
+    posts
 end
 
 #######################################################################
@@ -120,39 +152,6 @@ end
 function λposterior!(m::AbstractPPCAModel, θposts, accstats)::Nothing
     η₀ = naturalparam(m.λ)
     update!(θposts[:λ], η₀ + accstats)
-
-    nothing
-end
-
-#######################################################################
-# Accumulator for the α parameters
-
-function _αstats(Tw)
-    w, wwᵀ = Tw
-    s1 = -diag(wwᵀ) /2
-    s2 = zero(w) .+ 1/2
-    vcat(s1', s2')
-end
-
-function αstats(::PPCAModelHP, θposts)
-    D = length(θposts[:w][1].μ)
-    T = eltype(θposts[:w][1].μ)
-    stats = foldl(
-        (x, y) -> x .+ _αstats(gradlognorm(y, vectorize = false)),
-        θposts[:w],
-        init = zeros(T, 2, D)
-    )
-    eachcol(stats)
-end
-
-function αposteriors!(m::PPCAModelHP, θposts, accstats)::Nothing
-    η₀ = naturalparam(m.α)
-    for (αpost, s) in zip(θposts[:α], accstats)
-        update!(αpost, η₀ + s)
-    end
-
-    # Update the prior of the model
-    m.w.Σ = Symmetric(diagm(1 ./ mean.(θposts[:α])))
 
     nothing
 end

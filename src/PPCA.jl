@@ -6,6 +6,14 @@ using ExpFamilyDistributions
 using LinearAlgebra
 
 #######################################################################
+# Bayesian parameter
+
+export BayesParam
+export getparams
+
+include("bayesparam.jl")
+
+#######################################################################
 # Objective function
 
 export elbo
@@ -14,35 +22,21 @@ export cost_reg
 include("elbo.jl")
 
 #######################################################################
-# Model
+# AffineTransform
 
-export AbstractPPCAModel
-export PPCAModel
-export PPCAModelHP
-export θposteriors
-export hposteriors
+export AffineTransform
 
-include("model.jl")
+include("affinetransform.jl")
 
 #######################################################################
-# Accumulating and update functions
+# Models
 
-export hposteriors
-export wposteriors!
-export λposterior!
-export αposteriors!
-export wstats
-export λstats
-export αstats
-
-include("accumulators.jl")
-
-#######################################################################
-# Inference
-
+export loglikelihood
 export fit!
 
-include("inference.jl")
+export PPCAModel
+
+include("model.jl")
 
 end # module
 

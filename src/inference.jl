@@ -3,7 +3,13 @@
 #
 # Lucas Ondel, 2020
 
-function _fit!(model::AbstractPPCAModel, dataloader, θposts, epochs, callback)
+"""
+    fit!(model, dataloader, [, epochs = 1, callback = x -> x])
+
+Fit a PPCA model to a data set by estimating the variational posteriors
+over the parameters.
+"""
+function fit!(model::PPCAModel, dataloader, epochs, callback)
 
     @everywhere dataloader = $dataloader
 
@@ -11,59 +17,41 @@ function _fit!(model::AbstractPPCAModel, dataloader, θposts, epochs, callback)
     # update the bases and the other to update the precision parameter
 
     for e in 1:epochs
-        # Propagate the model and the posteriors to all the workers
-        @everywhere θposts = $θposts
+        # Propagate the model to all the workers
         @everywhere model = $model
 
         ###############################################################
         # Step 1: update the posterior of the bases
         waccstats = @distributed (+) for X in dataloader
             # E-step: estimate the posterior of the embeddings
-            hposts = hposteriors(model, X, θposts)
+            hposts = X |> model
 
             # Accumulate statistics for the bases w
-            wstats(model, X, θposts, hposts)
+            wstats(model, X, hposts)
         end
-        wposteriors!(model, θposts, waccstats)
+        update_W!(model, waccstats)
 
-        # Propagate the update of the posterior to all the workers
-        @everywhere θposts = $θposts
+        # Propagate the model to all the workers
+        @everywhere model = $model
 
         ###############################################################
         # Step 2: update the posterior of the precision λ
         λaccstats = @distributed (+) for X in dataloader
             # E-step: estimate the posterior of the embeddings
-            hposts = hposteriors(model, X, θposts)
+            hposts = X |> model
 
-            # Accumulate statistics for the bases w
-            λstats(model, X, θposts, hposts)
+            # Accumulate statistics for λ
+            λstats(model, X, hposts)
         end
 
         # M-step 2: update the posterior of the precision parameter λ
-        λposterior!(model, θposts, λaccstats)
+        update_λ!(model, λaccstats)
+
+        # M-step 3: update the posterior of the precision parameter λ
+        update_α!(model, αstats(model))
 
         # Notify the caller
         callback(e)
     end
 end
-
-function fit!(model::PPCAModel, dataloader, θposts; epochs = 1, callback = x -> x)
-    _fit!(model, dataloader, θposts, epochs, callback)
-end
-
-function fit!(model::PPCAModelHP, dataloader, θposts; epochs = 1, callback = x -> x)
-    function modified_callback(e)
-        αposteriors!(model, θposts, αstats(model, θposts))
-        callback(e)
-    end
-    _fit!(model, dataloader, θposts, epochs, modified_callback)
-end
-
-"""
-    fit!(model, dataloader, θposts[, epochs = 1, callback = x -> x])
-
-Fit a PPCA model to a data set by estimating the variational posteriors
-over the parameters.
-"""
-fit!
 

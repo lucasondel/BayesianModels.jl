@@ -28,10 +28,10 @@ end
 Plot multivariate Gaussian resulting from the marginalization of the latent prior (standard Normal)
 while taking Maximum A Posteriori of the other parameters.
 """
-function plotmodel!(p, model::AbstractPPCAModel{T,D,Q}, θposts;
+function plotmodel!(p, model::PPCAModel{T,D,Q};
                     color = :green) where {T,D,Q}
-    λ = mean(θposts[:λ])
-    W = hcat([θposts[:w][d].μ for d in 1:D]...)
+    λ = mean(model.λ.posterior)
+    W = hcat([w.posterior.μ for w in model.trans.W]...)
     m = W[end, :]
     S = (1/λ) * Matrix{T}(I, 2, 2)
     for d in 1:Q

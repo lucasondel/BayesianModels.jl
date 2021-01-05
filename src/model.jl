@@ -6,136 +6,65 @@
 #######################################################################
 # Model definition
 
-abstract type AbstractPPCAModel{T,D,Q} end
-
 """
-    struct PPCAModel{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-        w   # Prior over the bases
-        h   # Prior over the embeddings
-        λ   # Prior over the precision
+    struct PPCAModel{T,D,Q}
+        trans   # Affine transform
+        λ       # Precision parameter
     end
 
 Standard PPCA model.
 """
-struct PPCAModel{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-    w::Normal{T,V} where V # V = Q + 1
-    h::Normal{T,Q}
-    λ::Gamma{T}
-end
-
-"""
-    struct PPCAModelHP{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-        α   # Hyper-prior over the bases
-        w   # Prior over the bases
-        h   # Prior over the embeddings
-        λ   # Prior over the precision
-    end
-
-PPCA model with a hyper-prior over the variance of the prior over the
-bases.
-"""
-struct PPCAModelHP{T,D,Q} <: AbstractPPCAModel{T,D,Q}
-    α::Gamma{T}
-    w::Normal{T,V} where V # V = Q + 1
-    h::Normal{T,Q}
-    λ::Gamma{T}
+struct PPCAModel{T,D,Q}
+    trans::AffineTransform{T,D,Q}
+    λ::BayesParam{Gamma{T}}
 end
 
 function PPCAModel(T::Type{<:AbstractFloat}; datadim, latentdim,
-                   pstrength = 1e-3, hyperprior = true)
-    D, Q = datadim, latentdim
+                   pstrength = 1e-3, W_MAP = false)
 
-    λ = Gamma{T}(pstrength, pstrength)
-    w = Normal(zeros(T, Q+1), Symmetric(Matrix{T}(I, Q+1, Q+1)))
-    h = Normal(zeros(T, Q), Symmetric(Matrix{T}(I, Q, Q)))
+    trans = AffineTransform(T, outputdim = datadim, inputdim = latentdim,
+                            pstrength = pstrength, W_MAP = W_MAP)
+    λprior = Gamma{T}(pstrength, pstrength)
+    λposterior = Gamma{T}(pstrength, pstrength)
+    λ = BayesParam(λprior, λposterior)
 
-    if hyperprior
-        α = Gamma{T}(pstrength, pstrength)
-        return PPCAModelHP{T,D,Q}(α, w, h, λ)
-    else
-        return PPCAModel{T,D,Q}(w, h, λ)
-    end
+    PPCAModel{T,datadim,latentdim}(trans, λ)
 end
+
 PPCAModel(;datadim, latentdim, pstrength = 1e-3,
-          hyperprior = true) = PPCAModel(Float64;
-                                         datadim=datadim,
-                                         latentdim=latentdim,
-                                         pstrength=pstrength,
-                                         hyperprior = hyperprior)
+          W_MAP = false) = PPCAModel(Float64;
+                                         datadim = datadim,
+                                         latentdim = latentdim,
+                                         pstrength = pstrength,
+                                         W_MAP = W_MAP)
+
+#######################################################################
+# Estimate the latent variables
+
+function (m::PPCAModel{T,D,Q})(X::AbstractVector) where {T,D,Q}
+    S₁, S₂ = hstats(m.trans, X)
+    λ̄ = mean(m.λ.posterior)
+    S₁, S₂ = λ̄*S₁, λ̄*S₂
+
+    Λ₀ = inv(m.trans.hprior.Σ)
+    Λ₀μ₀ = Λ₀ * m.trans.hprior.μ
+    Σ = Symmetric(inv(Λ₀ + S₂))
+    [Normal(Σ * (Λ₀μ₀ + mᵢ), Σ) for mᵢ in S₁]
+end
 
 #######################################################################
 # Pretty print
 
-function Base.show(io::IO, ::MIME"text/plain", model::PPCAModelHP)
-    println(io, typeof(model), ":")
-    println(io, "  α:")
-    println(IOContext(io, :indent => cindent+4), model.α)
-    println(io, " "^(cindent+2), "wprior:")
-    println(IOContext(io, :indent => cindent+4), model.w)
-    println(io, " "^(cindent+2), "hprior:")
-    println(IOContext(io, :indent => cindent+4), model.h)
-    println(io, " "^(cindent+2), "λprior:")
-    println(IOContext(io, :indent => cindent+4), model.λ)
-end
-
 function Base.show(io::IO, ::MIME"text/plain", model::PPCAModel)
-    cindent = get(io, :indent, 0)
     println(io, typeof(model), ":")
-    println(io, " "^(cindent+2), "wprior:")
-    println(IOContext(io, :indent => cindent+4), model.w)
-    println(io, " "^(cindent+2), "hprior:")
-    println(IOContext(io, :indent => cindent+4), model.h)
-    println(io, " "^(cindent+2), "λprior:")
-    println(IOContext(io, :indent => cindent+4), model.λ)
+    println(io, "  trans: $(typeof(model.trans))")
+    println(io, "  λ: $(typeof(model.λ))")
 end
-
-#######################################################################
-# Initialization of the posteriors
-
-function _init_wposts(T, D, Q, w_MAP)
-    # Random initialization of the mean of q(W)
-    w₀s = [vcat(w₀ ./ norm(w₀), 0) for w₀ in eachcol(randn(T, Q, D))]
-
-    Σ = Symmetric(Matrix{T}(I, Q+1, Q+1))
-    wposts = [w_MAP ? δNormal(w₀) : Normal(w₀, Σ) for w₀ in w₀s]
-end
-
-function _init_gamma(T, α, β, MAP)
-    MAP ? δGamma{T}(α/β) : Gamma{T}(α, β)
-end
-
-function θposteriors(model::PPCAModel{T,D,Q}; w_MAP = true,
-                     λ_MAP = false) where {T,D,Q}
-    Dict(
-        :w => _init_wposts(T, D, Q, w_MAP),
-        :λ => _init_gamma(T, model.λ.α, model.λ.β, λ_MAP)
-    )
-end
-
-function θposteriors(model::PPCAModelHP{T,D,Q}; w_MAP = false, λ_MAP = false,
-                     α_MAP = false) where {T,D,Q}
-    Dict(
-        :α => [_init_gamma(T, model.α.α, model.α.β, α_MAP) for i in 1:Q+1],
-        :w => _init_wposts(T, D, Q, w_MAP),
-        :λ => _init_gamma(T, model.λ.α, model.λ.β, λ_MAP)
-    )
-end
-
-"""
-    θposteriors(model) -> Dict(:w => [Normal(...)], :λ => Gamma(...)[, :α => Gamma(...))
-
-Create and initialize the posteriors of the PPCA parameters. The set
-of posteriors are stored in a dictionary where the key is the
-corresponding parameter. The `α` parameter is only added when the
-model is a [`PPCAModelHP`](@ref).
-"""
-θposteriors
 
 #######################################################################
 # Log-likelihood
 
-# Per dimension log-likelihood
-function _llh_d(x, Tŵ, Tλ, Th)
+function _llh_d(::PPCAModel, x, Tŵ, Tλ, Th)
     λ, lnλ = Tλ
     h, hhᵀ = Th
 
@@ -152,20 +81,120 @@ function _llh_d(x, Tŵ, Tλ, Th)
     lognorm + K
 end
 
-function _llh(x, Tŵs, Tλ, Th)
+function _llh(m::PPCAModel, x, Tŵs, Tλ, Th)
     f = (a,b) -> begin
         xᵢ, Tŵᵢ = b
-        a + _llh_d(xᵢ, Tŵᵢ, Tλ, Th)
+        a + _llh_d(m, xᵢ, Tŵᵢ, Tλ, Th)
     end
-    return foldl(f, zip(x, Tŵs), init = 0)
+    foldl(f, zip(x, Tŵs), init = 0)
 end
 
-function loglikelihood(m::AbstractPPCAModel, X, θposts, hposts)
+function loglikelihood(m::PPCAModel{T,D,Q}, X) where {T,D,Q}
+    hposts = X |> m
     _llh.(
+        [m],
         X,
-        [[gradlognorm(p, vectorize = false) for p in θposts[:w] ]],
-        [gradlognorm(θposts[:λ], vectorize = false)],
+        [[gradlognorm(w.posterior, vectorize = false) for w in m.trans.W ]],
+        [gradlognorm(m.λ.posterior, vectorize = false)],
         [gradlognorm(p, vectorize = false) for p in hposts]
-   ) - cost_reg.(hposts, [m.h])
+   ) - kldiv.(hposts, [m.trans.hprior])
+end
+
+#######################################################################
+# Update of the precision parameter λ
+
+function _λstats_d(::PPCAModel, x::Real, Tŵ, Th)
+    h, hhᵀ = Th
+
+    # Extract the bias parameter
+    w = Tŵ[1][1:end-1]
+    wwᵀ = Tŵ[2][1:end-1, 1:end-1]
+    μ = Tŵ[1][end]
+    μ² = Tŵ[2][end, end]
+
+    x̄ = dot(w, h) + μ
+    Tλ₁ = -.5*x^2 + x*x̄ - dot(w, h)*μ - .5*(dot(vec(hhᵀ), vec(wwᵀ)) + μ²)
+    Tλ₂ = 1/2
+    vcat(Tλ₁, Tλ₂)
+end
+
+function _λstats(m::PPCAModel, x::AbstractVector, Tŵ, Th)
+    sum(_λstats_d.([m], x, Tŵ, [Th]))
+end
+
+function λstats(m::PPCAModel, X, hposts)
+    Tŵ = [gradlognorm(w.posterior, vectorize = false) for w in m.trans.W]
+    Th = [gradlognorm(p, vectorize = false) for p in hposts]
+    sum(_λstats.([m], X, [Tŵ], Th))
+end
+
+function update_λ!(m::PPCAModel, accstats)::Nothing
+    η₀ = naturalparam(m.λ.prior)
+    update!(m.λ.posterior, η₀ + accstats)
+    nothing
+end
+
+
+#######################################################################
+# Update of the bases W
+
+function wstats(m::PPCAModel, X, hposts)
+    λ, _ = gradlognorm(m.λ.posterior, vectorize = false)
+    S₁, S₂ = wstats(m.trans, X, hposts)
+    [λ*S₁, λ*S₂]
+end
+
+update_W!(m::PPCAModel, accstats) = update_W!(m.trans, accstats)
+
+#######################################################################
+# Training
+
+"""
+    fit!(model, dataloader, [, epochs = 1, callback = x -> x])
+
+Fit a PPCA model to a data set by estimating the variational posteriors
+over the parameters.
+"""
+function fit!(model::PPCAModel, dataloader; epochs = 1, callback = x -> x)
+
+    @everywhere dataloader = $dataloader
+
+    # NOTE: By 1 epoch we mean TWO passes over the data, one pass to
+    # update the bases and the other to update the precision parameter
+
+    for e in 1:epochs
+        # Propagate the model to all the workers
+        @everywhere model = $model
+
+        ###############################################################
+        # Step 1: update the posterior of the bases
+        waccstats = @distributed (+) for X in dataloader
+            # E-step: estimate the posterior of the embeddings
+            hposts = X |> model
+
+            # Accumulate statistics for the bases w
+            wstats(model, X, hposts)
+        end
+        update_W!(model, waccstats)
+
+        # Propagate the model to all the workers
+        @everywhere model = $model
+
+        ###############################################################
+        # Step 2: update the posterior of the precision λ
+        λaccstats = @distributed (+) for X in dataloader
+            # E-step: estimate the posterior of the embeddings
+            hposts = X |> model
+
+            # Accumulate statistics for λ
+            λstats(model, X, hposts)
+        end
+
+        # M-step 2: update the posterior of the precision parameter λ
+        update_λ!(model, λaccstats)
+
+        # Notify the caller
+        callback(e)
+    end
 end
 

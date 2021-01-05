@@ -1,37 +1,39 @@
-# PPCA - Computation of the objective function, the Evidence Lower
-# Bound (ELBO).
+# Computation of the Evidence Lower Bound (ELBO).
 #
-# Lucas Ondel 2020
+# Lucas Ondel 2021
 
 # Regularization cost of the posterior. It will depends on the type of
 # of the variational posterior:
-#   * std posterior -> classical VB inference -> KL(q || p)
-#   * δ-distribution -> Maximum A Posteriori -> - ln p( q.μ )
+#   * std posterior  -> classical VB inference -> KL(q || p)
+#   * δ-distribution -> Maximum A Posteriori   -> -ln p( q.μ )
 cost_reg(q::ExpFamilyDistribution, p::ExpFamilyDistribution) = kldiv(q, p)
-function cost_reg(q::δDistribution, p::ExpFamilyDistribution)
-    -ExpFamilyDistributions.loglikelihood(p, q.μ)
-end
-cost_reg(qs::AbstractVector, p::ExpFamilyDistribution) = sum(cost_reg.(qs, [p]))
-
-function elbo(m, dataloader::DataLoader, θposts; detailed = false)
-    L = @distributed (+) for X in dataloader
-        hposts = hposteriors(m, X, θposts)
-        sum(loglikelihood(m, X, θposts, hposts))
+cost_reg(q::δDistribution, p::ExpFamilyDistribution) = -ExpFamilyDistributions.loglikelihood(p, q.μ)
+function cost_reg(model)
+    params = getparams(model)
+    cost = 0
+    for param in params
+        cost += cost_reg(param.posterior, param.prior)
     end
-    C = sum(pair -> cost_reg(pair.second, getproperty(m, pair.first)), θposts)
+    cost
+end
+
+function elbo(m, dataloader::DataLoader; detailed = false)
+    L = @distributed (+) for X in dataloader
+        sum(loglikelihood(m, X))
+    end
+    C = cost_reg(m)
     detailed ? (L - C, L, C) : L - C
 end
 
-function elbo(m, X::AbstractVector, θposts; detailed = false)
-    hposts = hposteriors(m, X, θposts)
-    L = sum(loglikelihood(m, X, θposts, hposts))
-    C = sum(pair -> cost_reg(pair.second, getproperty(m, pair.first)), θposts)
+function elbo(m, X::AbstractVector; detailed = false)
+    L = sum(loglikelihood(m, X))
+    C = cost_reg(m)
     detailed ? (L - C, L, C) : L - C
 end
 
 """
-    elbo(model, dataloader, θposts[, detailed = false])
-    elbo(model, X, θposts[, detailed = false])
+    elbo(model, dataloader[, detailed = false])
+    elbo(model, X[, detailed = false])
 
 Compute the Evidence Lower-BOund (ELBO) of the model. If `detailed` is
 set to `true` returns a tuple `elbo, loglikelihood, KL`.
