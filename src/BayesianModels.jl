@@ -1,4 +1,4 @@
-module PPCA
+module BayesianModels
 
 using BasicDataLoaders
 using Distributed
@@ -22,21 +22,16 @@ export cost_reg
 include("elbo.jl")
 
 #######################################################################
-# AffineTransform
-
-export AffineTransform
-
-include("affinetransform.jl")
-
-#######################################################################
 # Models
 
 export loglikelihood
 export fit!
 
-export PPCAModel
+export AffineTransform
+include("models/affinetransform.jl")
 
-include("model.jl")
+export PPCA
+include("models/ppca.jl")
 
 end # module
 

@@ -23,12 +23,12 @@ function plotnormal2d!(p, μ::AbstractVector, Σ::AbstractMatrix; ncontours=2, c
 end
 
 """
-    plotmodel!(p, model, θposts[, color = :green])
+    plotmodel!(p, model[, color = :green])
 
 Plot multivariate Gaussian resulting from the marginalization of the latent prior (standard Normal)
 while taking Maximum A Posteriori of the other parameters.
 """
-function plotmodel!(p, model::PPCAModel{T,D,Q};
+function plotmodel!(p, model::PPCA{T,D,Q};
                     color = :green) where {T,D,Q}
     λ = mean(model.λ.posterior)
     W = hcat([w.posterior.μ for w in model.trans.W]...)

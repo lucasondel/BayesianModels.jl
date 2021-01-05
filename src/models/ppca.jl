@@ -1,5 +1,4 @@
-# PPCA - Implementation of the Probabilistic Principal Components
-# Analysis (PPCA) model.
+# Probabilistic Principal Components Analysis (PPCA) model.
 #
 # Lucas Ondel 2020
 
@@ -7,19 +6,19 @@
 # Model definition
 
 """
-    struct PPCAModel{T,D,Q}
+    struct PPCA{T,D,Q}
         trans   # Affine transform
         λ       # Precision parameter
     end
 
 Standard PPCA model.
 """
-struct PPCAModel{T,D,Q}
+struct PPCA{T,D,Q}
     trans::AffineTransform{T,D,Q}
     λ::BayesParam{Gamma{T}}
 end
 
-function PPCAModel(T::Type{<:AbstractFloat}; datadim, latentdim,
+function PPCA(T::Type{<:AbstractFloat}; datadim, latentdim,
                    pstrength = 1e-3, W_MAP = false)
 
     trans = AffineTransform(T, outputdim = datadim, inputdim = latentdim,
@@ -28,11 +27,11 @@ function PPCAModel(T::Type{<:AbstractFloat}; datadim, latentdim,
     λposterior = Gamma{T}(pstrength, pstrength)
     λ = BayesParam(λprior, λposterior)
 
-    PPCAModel{T,datadim,latentdim}(trans, λ)
+    PPCA{T,datadim,latentdim}(trans, λ)
 end
 
-PPCAModel(;datadim, latentdim, pstrength = 1e-3,
-          W_MAP = false) = PPCAModel(Float64;
+PPCA(;datadim, latentdim, pstrength = 1e-3,
+          W_MAP = false) = PPCA(Float64;
                                          datadim = datadim,
                                          latentdim = latentdim,
                                          pstrength = pstrength,
@@ -41,7 +40,7 @@ PPCAModel(;datadim, latentdim, pstrength = 1e-3,
 #######################################################################
 # Estimate the latent variables
 
-function (m::PPCAModel{T,D,Q})(X::AbstractVector) where {T,D,Q}
+function (m::PPCA{T,D,Q})(X::AbstractVector) where {T,D,Q}
     S₁, S₂ = hstats(m.trans, X)
     λ̄ = mean(m.λ.posterior)
     S₁, S₂ = λ̄*S₁, λ̄*S₂
@@ -55,7 +54,7 @@ end
 #######################################################################
 # Pretty print
 
-function Base.show(io::IO, ::MIME"text/plain", model::PPCAModel)
+function Base.show(io::IO, ::MIME"text/plain", model::PPCA)
     println(io, typeof(model), ":")
     println(io, "  trans: $(typeof(model.trans))")
     println(io, "  λ: $(typeof(model.λ))")
@@ -64,7 +63,7 @@ end
 #######################################################################
 # Log-likelihood
 
-function _llh_d(::PPCAModel, x, Tŵ, Tλ, Th)
+function _llh_d(::PPCA, x, Tŵ, Tλ, Th)
     λ, lnλ = Tλ
     h, hhᵀ = Th
 
@@ -81,7 +80,7 @@ function _llh_d(::PPCAModel, x, Tŵ, Tλ, Th)
     lognorm + K
 end
 
-function _llh(m::PPCAModel, x, Tŵs, Tλ, Th)
+function _llh(m::PPCA, x, Tŵs, Tλ, Th)
     f = (a,b) -> begin
         xᵢ, Tŵᵢ = b
         a + _llh_d(m, xᵢ, Tŵᵢ, Tλ, Th)
@@ -89,7 +88,7 @@ function _llh(m::PPCAModel, x, Tŵs, Tλ, Th)
     foldl(f, zip(x, Tŵs), init = 0)
 end
 
-function loglikelihood(m::PPCAModel{T,D,Q}, X) where {T,D,Q}
+function loglikelihood(m::PPCA{T,D,Q}, X) where {T,D,Q}
     hposts = X |> m
     _llh.(
         [m],
@@ -103,7 +102,7 @@ end
 #######################################################################
 # Update of the precision parameter λ
 
-function _λstats_d(::PPCAModel, x::Real, Tŵ, Th)
+function _λstats_d(::PPCA, x::Real, Tŵ, Th)
     h, hhᵀ = Th
 
     # Extract the bias parameter
@@ -118,17 +117,17 @@ function _λstats_d(::PPCAModel, x::Real, Tŵ, Th)
     vcat(Tλ₁, Tλ₂)
 end
 
-function _λstats(m::PPCAModel, x::AbstractVector, Tŵ, Th)
+function _λstats(m::PPCA, x::AbstractVector, Tŵ, Th)
     sum(_λstats_d.([m], x, Tŵ, [Th]))
 end
 
-function λstats(m::PPCAModel, X, hposts)
+function λstats(m::PPCA, X, hposts)
     Tŵ = [gradlognorm(w.posterior, vectorize = false) for w in m.trans.W]
     Th = [gradlognorm(p, vectorize = false) for p in hposts]
     sum(_λstats.([m], X, [Tŵ], Th))
 end
 
-function update_λ!(m::PPCAModel, accstats)::Nothing
+function update_λ!(m::PPCA, accstats)::Nothing
     η₀ = naturalparam(m.λ.prior)
     update!(m.λ.posterior, η₀ + accstats)
     nothing
@@ -138,13 +137,13 @@ end
 #######################################################################
 # Update of the bases W
 
-function wstats(m::PPCAModel, X, hposts)
+function wstats(m::PPCA, X, hposts)
     λ, _ = gradlognorm(m.λ.posterior, vectorize = false)
     S₁, S₂ = wstats(m.trans, X, hposts)
     [λ*S₁, λ*S₂]
 end
 
-update_W!(m::PPCAModel, accstats) = update_W!(m.trans, accstats)
+update_W!(m::PPCA, accstats) = update_W!(m.trans, accstats)
 
 #######################################################################
 # Training
@@ -155,7 +154,7 @@ update_W!(m::PPCAModel, accstats) = update_W!(m.trans, accstats)
 Fit a PPCA model to a data set by estimating the variational posteriors
 over the parameters.
 """
-function fit!(model::PPCAModel, dataloader; epochs = 1, callback = x -> x)
+function fit!(model::PPCA, dataloader; epochs = 1, callback = x -> x)
 
     @everywhere dataloader = $dataloader
 

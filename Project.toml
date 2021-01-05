@@ -1,4 +1,4 @@
-name = "PPCA"
+name = "BayesianModels"
 uuid = "1400088c-90aa-43b9-ae43-7211fec07595"
 authors = ["Lucas Ondel <iondel@fit.vutbr.cz>"]
 version = "0.1.0"
