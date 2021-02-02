@@ -19,7 +19,6 @@ the bases.
 struct AffineTransform{T,D,Q}
     α::Vector{<:BayesParam}
     W::Vector{<:BayesParam}
-    hprior::Normal{T,Q}
 end
 
 function _init_wposts(T, D, Q, w_MAP)
@@ -34,8 +33,6 @@ function AffineTransform(T::Type{<:AbstractFloat}; outputdim, inputdim,
                          pstrength = 1e-3, W_MAP = false, α_MAP = false)
     D, Q = outputdim, inputdim
 
-    hprior = Normal(zeros(T, Q), Symmetric(Matrix{T}(I, Q, Q)))
-
     wprior = Normal(zeros(T, Q+1), Symmetric(Matrix{T}(I, Q+1, Q+1)))
     W = [BayesParam(wprior, post) for post in _init_wposts(T, D, Q, W_MAP)]
 
@@ -44,7 +41,7 @@ function AffineTransform(T::Type{<:AbstractFloat}; outputdim, inputdim,
     αposts = [_init_gamma(T, αprior.α, αprior.β, α_MAP) for i in 1:Q+1]
     α = [BayesParam(αprior, post) for post in αposts]
 
-    AffineTransform{T,D,Q}(α, W, hprior)
+    AffineTransform{T,D,Q}(α, W)
 end
 function AffineTransform(;inputdim, outputdim, pstrength = 1e-3,
                          W_MAP = false, α_MAP = false)
@@ -59,7 +56,7 @@ function Base.show(io::IO, ::MIME"text/plain", trans::AffineTransform)
     println(io, typeof(trans), ":")
     println(io, "  α: $(typeof(trans.α))")
     println(io, "  W: $(typeof(trans.W))")
-    println(io, "  hprior: $(typeof(trans.hprior))")
+
 end
 
 #######################################################################

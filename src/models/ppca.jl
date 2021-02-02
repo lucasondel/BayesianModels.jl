@@ -7,6 +7,7 @@
 
 """
     struct PPCA{T,D,Q}
+        hprior  # Prior over the latent embeddings
         trans   # Affine transform
         λ       # Precision parameter
     end
@@ -14,6 +15,7 @@
 Standard PPCA model.
 """
 struct PPCA{T,D,Q}
+    hprior::Normal{T,Q}
     trans::AffineTransform{T,D,Q}
     λ::BayesParam{Gamma{T}}
 end
@@ -21,13 +23,16 @@ end
 function PPCA(T::Type{<:AbstractFloat}; datadim, latentdim,
                    pstrength = 1e-3, W_MAP = false)
 
-    trans = AffineTransform(T, outputdim = datadim, inputdim = latentdim,
+    D, Q = datadim, latentdim
+    hprior = Normal(zeros(T, Q), Symmetric(Matrix{T}(I, Q, Q)))
+
+    trans = AffineTransform(T, outputdim = D, inputdim = Q,
                             pstrength = pstrength, W_MAP = W_MAP)
     λprior = Gamma{T}(pstrength, pstrength)
     λposterior = Gamma{T}(pstrength, pstrength)
     λ = BayesParam(λprior, λposterior)
 
-    PPCA{T,datadim,latentdim}(trans, λ)
+    PPCA{T,datadim,latentdim}(hprior, trans, λ)
 end
 
 PPCA(;datadim, latentdim, pstrength = 1e-3,
@@ -45,8 +50,8 @@ function (m::PPCA{T,D,Q})(X::AbstractVector) where {T,D,Q}
     λ̄ = mean(m.λ.posterior)
     S₁, S₂ = λ̄*S₁, λ̄*S₂
 
-    Λ₀ = inv(m.trans.hprior.Σ)
-    Λ₀μ₀ = Λ₀ * m.trans.hprior.μ
+    Λ₀ = inv(m.hprior.Σ)
+    Λ₀μ₀ = Λ₀ * m.hprior.μ
     Σ = Symmetric(inv(Λ₀ + S₂))
     [Normal(Σ * (Λ₀μ₀ + mᵢ), Σ) for mᵢ in S₁]
 end
@@ -56,6 +61,7 @@ end
 
 function Base.show(io::IO, ::MIME"text/plain", model::PPCA)
     println(io, typeof(model), ":")
+    println(io, "  hprior: $(typeof(model.hprior))")
     println(io, "  trans: $(typeof(model.trans))")
     println(io, "  λ: $(typeof(model.λ))")
 end
@@ -96,7 +102,7 @@ function loglikelihood(m::PPCA{T,D,Q}, X) where {T,D,Q}
         [[gradlognorm(w.posterior, vectorize = false) for w in m.trans.W ]],
         [gradlognorm(m.λ.posterior, vectorize = false)],
         [gradlognorm(p, vectorize = false) for p in hposts]
-   ) - kldiv.(hposts, [m.trans.hprior])
+   ) - kldiv.(hposts, [m.hprior])
 end
 
 #######################################################################

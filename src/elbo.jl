@@ -17,16 +17,16 @@ function cost_reg(model)
     cost
 end
 
-function elbo(m, dataloader::DataLoader; detailed = false)
+function elbo(m, dataloader::DataLoader, args...; detailed = false)
     L = @distributed (+) for X in dataloader
-        sum(loglikelihood(m, X))
+        sum(loglikelihood(m, X, args...))
     end
     C = cost_reg(m)
     detailed ? (L - C, L, C) : L - C
 end
 
-function elbo(m, X::AbstractVector; detailed = false)
-    L = sum(loglikelihood(m, X))
+function elbo(m, args...; detailed = false)
+    L = sum(loglikelihood(m, args...))
     C = cost_reg(m)
     detailed ? (L - C, L, C) : L - C
 end
@@ -39,4 +39,19 @@ Compute the Evidence Lower-BOund (ELBO) of the model. If `detailed` is
 set to `true` returns a tuple `elbo, loglikelihood, KL`.
 """
 elbo
+
+#######################################################################
+# Natural gradient of the elbo.
+
+function ∇elbo(model, args...; stats_scale = 1)
+    stats = getparam_stats(model, args...)
+
+    retval = Dict()
+    for (param, s) in stats
+        η₀ = naturalparam(param.prior)
+        η = naturalparam(param.posterior)
+        retval[param] = η₀ + stats_scale*s - η
+    end
+    retval
+end
 
