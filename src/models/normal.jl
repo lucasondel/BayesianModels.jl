@@ -6,38 +6,33 @@
 # Model definition
 
 """
-    struct NormalDiag{T,D}
-        μ       # mean
-        λ       # diagonal of the precision matrix
+    struct NormalDiag{D} <: AbstractModel
+        μ
+        λ
     end
 
 Normal distribution with diagonal covariance matrix.
 """
-struct NormalDiag{T,D}
+struct NormalDiag{D} <: AbstractModel
     μ::T where T<:BayesParam
-    λ::Vector{<:BayesParam}
+    λ::BayesParamList{D,T} where T<:BayesParam
 end
 
-function NormalDiag(T::Type{<:AbstractFloat}; datadim, pstrength = 1,
-                   init_noise_std = 0, m₀ = nothing, λ₀ = nothing)
+function NormalDiag(;datadim, pstrength = 1, init_noise_std = 0, m₀ = nothing,
+                    λ₀ = nothing)
     D = datadim
-    m₀ = isnothing(m₀) ? zeros(T, D) : m₀
-    λ₀ = isnothing(λ₀) ? ones(T, D) : λ₀
+    m₀ = isnothing(m₀) ? zeros(D) : m₀
+    λ₀ = isnothing(λ₀) ? ones(D) : λ₀
 
     μprior = ExpFamilyDistributions.NormalDiag(m₀, λ₀/pstrength)
-    μposterior = ExpFamilyDistributions.NormalDiag(m₀ + randn(T, D)*init_noise_std, λ₀/pstrength)
+    μposterior = ExpFamilyDistributions.NormalDiag(m₀ + randn(D)*init_noise_std, λ₀/pstrength)
     μ = BayesParam(μprior, μposterior)
 
     α₀ = pstrength
     β₀ = pstrength ./ λ₀
-    λ = [BayesParam(Gamma{T}(α₀, β₀ᵢ), Gamma{T}(α₀, β₀ᵢ)) for β₀ᵢ in β₀]
+    λ = tuple([BayesParam(Gamma{Float64}(α₀, β₀ᵢ), Gamma{Float64}(α₀, β₀ᵢ)) for β₀ᵢ in β₀]...)
 
-    NormalDiag{T,D}(μ, λ)
-end
-function NormalDiag(; datadim, pstrength = 1e-3, init_noise_std = 0,
-                    m₀ = nothing, λ₀ = nothing)
-    NormalDiag(Float64, datadim = datadim, pstrength = pstrength,
-               init_noise_std = init_noise_std, m₀ = m₀, λ₀ = λ₀)
+    NormalDiag{D}(μ, λ)
 end
 
 #######################################################################
@@ -52,73 +47,59 @@ end
 #######################################################################
 # Model interface
 
-function _llh_d(::NormalDiag, x, Tμ, Tλ)
-    λ, lnλ = Tλ
-    μ, μμᵀ = Tμ
-    (-log(2π) + lnλ - λ*(x^2) - λ*μμᵀ)/2 + λ*μ*x
+basemeasure(::NormalDiag, x::AbstractVector{<:Real}) = -.5*length(x)*log(2π)
+
+function vectorize(m::NormalDiag)
+    Tλ = gradlognorm.(getproperty.(m.λ, :posterior), vectorize = false)
+    λ = [Tλᵢ[1] for Tλᵢ in Tλ]
+    lnλ = [Tλᵢ[2] for Tλᵢ in Tλ]
+    μ, μ² = gradlognorm(m.μ.posterior, vectorize = false)
+    vcat(λ .* μ, -.5 .* λ, -.5 * (λ' * μ² - sum(lnλ)))
 end
 
-function _llh(m::NormalDiag, x, Tμ, Tλ)
-    f = (a,b) -> begin
-        xᵢ, Tμᵢ, Tλᵢ = b
-        a + _llh_d(m, xᵢ, Tμᵢ, Tλᵢ)
-    end
-    foldl(f, zip(x, Tμ, Tλ), init = 0)
+statistics(m::NormalDiag, x::AbstractVector{<:Real}) = vcat(x, x.^2, 1)
+
+function loglikelihood(m::NormalDiag, x::AbstractVector{<:Real})
+    D = length(x)
+    Tη = vectorize(m)
+    Tx = statistics(m, x)
+    Tη'*Tx + basemeasure(m, x)
 end
 
-function loglikelihood(m::NormalDiag, X)
-    _llh.(
-        [m],
-        X,
-        [collect(zip(gradlognorm(m.μ.posterior, vectorize = false)...))],
-        [[gradlognorm(λᵢ.posterior, vectorize = false) for λᵢ in m.λ]],
-   )
+function loglikelihood(m::NormalDiag, X::AbstractVector{<:AbstractVector})
+    D = length(X[1])
+    Tη = vectorize(m)
+    TX = statistics.([m], X)
+    dot.([Tη], TX) .+ basemeasure.([m], X)
 end
 
-function getparam_stats(m::NormalDiag, X)
-    λ_s = λstats(m, X)
-    μ_s = μstats(m, X)
-    retval = Dict{BayesParam, Vector}(m.μ => μ_s)
+function getparam_stats(m::NormalDiag, X, resps)
+    λ_s = λstats(m, X, resps)
+    μ_s = μstats(m, X, resps)
+    T = eltype(μ_s)
+    retval = Dict{BayesParam, Vector{T}}(m.μ => μ_s)
     for (λᵢ,λᵢ_s) in zip(m.λ, λ_s)
         retval[λᵢ] = λᵢ_s
     end
     retval
 end
+getparam_stats(m::NormalDiag, X) = getparam_stats(m, X, ones(eltype(X[1]), length(X)))
 
 #######################################################################
 # λ statistics
 
-function _λstats_d(::NormalDiag, x::Real, Tμ)
-    μ, μμᵀ = Tμ
-    Tλ₁ = (-x^2 -μμᵀ)/2 + μ*x
-    Tλ₂ = 1/2
-    vcat(Tλ₁, Tλ₂)
-end
-
-function _λstats(m::NormalDiag, x::AbstractVector, Tμ)
-    _λstats_d.([m], x, Tμ)
-end
-
-function λstats(m::NormalDiag, X)
-    Tμ = collect(zip(gradlognorm(m.μ.posterior, vectorize = false)...))
-    sum(_λstats.([m], X, [Tμ]))
+function λstats(m::NormalDiag, X, resps)
+    μ, μ² = gradlognorm(m.μ.posterior, vectorize = false)
+    s1 = sum(t -> ((x,z) = t ; z * (-.5 * x.^2 + μ .* x -.5*μ²)) , zip(X, resps))
+    s2 = .5*ones(eltype(μ), length(μ))*sum(resps)
+    map(x -> eltype(μ)[x...], zip(s1, s2))
 end
 
 #######################################################################
 # μ statistics
 
-function _μstats_d(::NormalDiag, x::Real, Tλ)
-    λ, _ = Tλ
-    vcat(λ*x, -λ/2)
-end
-
-function _μstats(m::NormalDiag, x::AbstractVector, Tλ)
-    _μstats_d.([m], x, Tλ)
-end
-
-function μstats(m::NormalDiag, X)
-    Tλ = [gradlognorm(λᵢ.posterior, vectorize = false) for λᵢ in m.λ]
-    s = sum(_μstats.([m], X, [Tλ]))
-    vcat(getindex.(s, 1), getindex.(s, 2))
+function μstats(m::NormalDiag, X, z)
+    λ = [gradlognorm(λᵢ.posterior, vectorize = false)[1] for λᵢ in m.λ]
+    s = sum(x -> vcat(λ .* x, -λ/2), X)
 end
 

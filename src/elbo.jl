@@ -55,3 +55,15 @@ function ∇elbo(model, args...; stats_scale = 1)
     retval
 end
 
+"""
+    gradstep(param_grad; lrate)
+
+"""
+function gradstep(param_grad; lrate::Real)
+    for (param, grad) in param_grad
+        η⁰ = naturalparam(param.posterior)
+        η¹ = η⁰ + lrate * grad
+        update!(param.posterior, η¹)
+    end
+end
+
