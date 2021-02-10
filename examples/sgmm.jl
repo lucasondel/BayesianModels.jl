@@ -1,4 +1,5 @@
 
+using Random
 using Plots
 using BasicDataLoaders
 
@@ -10,8 +11,10 @@ using BayesianModels
 
 D = 2           # Dimension of the data.
 K = 5           # Number of Gaussian components in the model.
-epochs = 1000     # Number of epochs.
+epochs = 1000   # Number of epochs.
 lrate = 0.1     # Learning rate.
+batchsize = 10  # Number of samples per batch
+lograte = 5     # Output a log message every `lograte` udpate
 
 #######################################################################
 
@@ -23,11 +26,21 @@ model = Mixture(components = normals)
 elbos = [elbo(model, X)]
 @info "epoch = 0 𝓛 = $(elbos[end])"
 
+n_updates = 0
 for epoch in 1:epochs
-    gradstep(∇elbo(model, X, stats_scale = 1), lrate = lrate)
-    push!(elbos, elbo(model, X))
-    @info "epoch = $epoch 𝓛 = $(elbos[end])"
+    global n_updates
+
+    dl = DataLoader(shuffle(X), batchsize = batchsize)
+    for (i, Xᵢ) in enumerate(dl)
+        gradstep(∇elbo(model, Xᵢ, stats_scale = 1), lrate = lrate)
+        n_updates += 1
+
+        if n_updates % lograte == 0
+            push!(elbos, elbo(model, X))
+            @info "epoch = $epoch batch = $(i)/$(length(dl)) 𝓛 = $(elbos[end])"
+        end
+    end
 end
 
-plot(elbos, label = "ELBO")
+plot(elbos[2:end], label = "ELBO")
 

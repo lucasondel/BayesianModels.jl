@@ -64,7 +64,6 @@ basemeasure(m::Mixture, x::AbstractVector{<:Real}) = basemeasure(m.components[1]
 function vectorize(m::Mixture)
     lnπ = gradlognorm(m.π.posterior)
     [vcat(vectorize(c), lnπᵢ) for (c, lnπᵢ) in zip(m.components, lnπ)]
-
 end
 
 function statistics(m::Mixture, x::AbstractVector{<:Real})
