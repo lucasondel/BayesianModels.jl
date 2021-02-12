@@ -62,7 +62,10 @@ end
 function gradstep(param_grad; lrate::Real)
     for (param, grad) in param_grad
         η⁰ = naturalparam(param.posterior)
+        #θ⁰ = param.gradspace.f(η⁰)
         η¹ = η⁰ + lrate * grad
+        # θ¹ = θ⁰ + lrage * grad
+        #η¹ = param.gradspace.f_inv(θ¹)
         update!(param.posterior, η¹)
     end
 end
