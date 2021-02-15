@@ -2,14 +2,26 @@ module BayesianModels
 
 using BasicDataLoaders
 using Distributed
-using ExpFamilyDistributions
+import ExpFamilyDistributions
 using LinearAlgebra
 using StatsFuns: logsumexp
+
+const EFD = ExpFamilyDistributions
+
+#######################################################################
+# BayesianModels generic object
+
+include("bmobj.jl")
 
 #######################################################################
 # Model
 
 export AbstractModel
+export basemeasure
+export vectorize
+export statistics
+export loglikelihood
+export getparam_stats
 export ModelList
 
 include("model.jl")
@@ -37,32 +49,14 @@ include("elbo.jl")
 #######################################################################
 # Models
 
-export loglikelihood
-export fit!
-
-export AffineTransform
-include("models/affinetransform.jl")
-
-export PPCA
-include("models/ppca.jl")
-
-export PLDA
-export hstats
-export ustats
-export update_u!
-export wstats_within_class
-export update_W_within_class!
-export wstats_across_class
-export update_W_across_class!
-include("models/plda.jl")
-
-export NormalDiag
-export vectorize
-export statistics
+export Normal
 include("models/normal.jl")
 
-export Mixture
-include("models/mixture.jl")
+#export NormalDiag
+#include("models/normaldiag.jl")
+
+#export Mixture
+#include("models/mixture.jl")
 
 end # module
 

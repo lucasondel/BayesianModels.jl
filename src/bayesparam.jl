@@ -7,7 +7,7 @@
 
 Generic type for a BayesianParameter.
 """
-abstract type AbstractBayesParam{T} end
+abstract type AbstractBayesParam{T} <: BMObject end
 
 """
     struct BayesParam{T}
@@ -17,17 +17,34 @@ abstract type AbstractBayesParam{T} end
 
 Bayesian parameter, i.e. a parameter with a prior and a (variational)
 posterior. Both the prior and the posterior should be of the same type.
+
+# Constructor
+
+    BayesParam(prior, posterior, [stats_fn = function])
+
+Create a parameter with a prior and a posterior. `prior` and
+`posterior` should have the same type. `stats_fn` is a function to
+get the sufficient statistics of the parameters from a distribution.
 """
 struct BayesParam{T} <: AbstractBayesParam{T}
     prior::T
     posterior::T
+
+    _stats_fn::Function
+
+    function BayesParam(prior::T, posterior::T;
+                        stats_fn = (p -> EFD.gradlognorm(p, vectorize = false))) where T
+        new{T}(prior, posterior, stats_fn)
+    end
 end
 
-function Base.show(io::IO, ::MIME"text/plain", p::BayesParam)
-    println(io, "$(typeof(p)):")
-    println(io, "  prior: $(p.prior)")
-    println(io, "  posterior: $(p.posterior)")
-end
+
+"""
+    statistics(param)
+
+Returns the statistics of the parameter's posterior.
+"""
+statistics(param::BayesParam) = param._stats_fn(param.posterior)
 
 """
     BayesParamList{N,T}(m1, m2, m3, ...)

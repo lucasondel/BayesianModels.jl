@@ -6,8 +6,8 @@
 # of the variational posterior:
 #   * std posterior  -> classical VB inference -> KL(q || p)
 #   * δ-distribution -> Maximum A Posteriori   -> -ln p( q.μ )
-cost_reg(q::ExpFamilyDistribution, p::ExpFamilyDistribution) = kldiv(q, p)
-cost_reg(q::δDistribution, p::ExpFamilyDistribution) = -ExpFamilyDistributions.loglikelihood(p, q.μ)
+cost_reg(q::EFD.ExpFamilyDistribution, p::EFD.ExpFamilyDistribution) = EFD.kldiv(q, p)
+cost_reg(q::EFD.δDistribution, p::EFD.ExpFamilyDistribution) = -EFD.loglikelihood(p, q.μ)
 function cost_reg(model)
     params = getparams(model)
     cost = 0
@@ -46,13 +46,15 @@ elbo
 function ∇elbo(model, args...; stats_scale = 1)
     stats = getparam_stats(model, args...)
 
-    retval = Dict()
+    grads = Dict()
     for (param, s) in stats
-        η₀ = naturalparam(param.prior)
-        η = naturalparam(param.posterior)
-        retval[param] = η₀ + stats_scale*s - η
+        # grads[param] = ∇elbo(param, stats_scale*s)
+        # grads[param] = ∂Tη_∂ξ
+        η₀ = EFD.naturalparam(param.prior)
+        η = EFD.naturalparam(param.posterior)
+        grads[param] = η₀ + stats_scale*s - η
     end
-    retval
+    grads
 end
 
 """
@@ -61,12 +63,12 @@ end
 """
 function gradstep(param_grad; lrate::Real)
     for (param, grad) in param_grad
-        η⁰ = naturalparam(param.posterior)
+        η⁰ = EFD.naturalparam(param.posterior)
         #θ⁰ = param.gradspace.f(η⁰)
         η¹ = η⁰ + lrate * grad
         # θ¹ = θ⁰ + lrage * grad
         #η¹ = param.gradspace.f_inv(θ¹)
-        update!(param.posterior, η¹)
+        EFD.update!(param.posterior, η¹)
     end
 end
 
