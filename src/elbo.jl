@@ -2,57 +2,38 @@
 #
 # Lucas Ondel 2021
 
-# Regularization cost of the posterior. It will depends on the type of
-# of the variational posterior:
-#   * std posterior  -> classical VB inference -> KL(q || p)
-#   * δ-distribution -> Maximum A Posteriori   -> -ln p( q.μ )
-cost_reg(q::EFD.ExpFamilyDistribution, p::EFD.ExpFamilyDistribution) = EFD.kldiv(q, p)
-cost_reg(q::EFD.δDistribution, p::EFD.ExpFamilyDistribution) = -EFD.loglikelihood(p, q.μ)
-function cost_reg(model)
-    params = getparams(model)
-    cost = 0
-    for param in params
-        cost += cost_reg(param.posterior, param.prior)
-    end
-    cost
-end
-
-function elbo(m, dataloader::DataLoader, args...; detailed = false)
-    L = @distributed (+) for X in dataloader
-        sum(loglikelihood(m, X, args...))
-    end
-    C = cost_reg(m)
-    detailed ? (L - C, L, C) : L - C
-end
-
-function elbo(m, args...; detailed = false)
-    L = sum(loglikelihood(m, args...))
-    C = cost_reg(m)
-    detailed ? (L - C, L, C) : L - C
-end
-
 """
-    elbo(model, dataloader[, detailed = false])
     elbo(model, X[, detailed = false])
 
 Compute the Evidence Lower-BOund (ELBO) of the model. If `detailed` is
 set to `true` returns a tuple `elbo, loglikelihood, KL`.
 """
-elbo
+function elbo(model, args...; detailed = false, stats_scale=1)
+    llh = sum(loglikelihood(model, args...))*stats_scale
 
-#######################################################################
-# Natural gradient of the elbo.
+    params = Zygote.@ignore filter(isbayesparam, getparams(model))
+    KL = sum(param -> EFD.kldiv(param.posterior, param.prior, μ = param._μ),
+             params)
+    detailed ? (llh - KL, llh, KL) : llh - KL
+end
 
+"""
+    ∇elbo(model, args...[, stats_scale = 1])
+
+Compute the natural gradient of the elbo w.r.t. to the posteriors'
+parameters.
+"""
 function ∇elbo(model, args...; stats_scale = 1)
-    stats = getparam_stats(model, args...)
+    bayesparams = filter(isbayesparam, getparams(model))
+    P = Params([param._μ for param in bayesparams])
+    μgrads = gradient(() -> elbo(model, args..., stats_scale = stats_scale), P)
 
     grads = Dict()
-    for (param, s) in stats
-        # grads[param] = ∇elbo(param, stats_scale*s)
-        # grads[param] = ∂Tη_∂ξ
-        η₀ = EFD.naturalparam(param.prior)
+    for param in bayesparams
+        ∂𝓛_∂μ = μgrads[param._μ]
         η = EFD.naturalparam(param.posterior)
-        grads[param] = η₀ + stats_scale*s - η
+        J = FD.jacobian(param._grad_map, η)
+        grads[param] = J * ∂𝓛_∂μ
     end
     grads
 end
@@ -60,15 +41,16 @@ end
 """
     gradstep(param_grad; lrate)
 
+Update the parameters' posterior by doing one natural gradient steps.
 """
 function gradstep(param_grad; lrate::Real)
-    for (param, grad) in param_grad
+    for (param, ∇𝓛) in param_grad
         η⁰ = EFD.naturalparam(param.posterior)
-        #θ⁰ = param.gradspace.f(η⁰)
-        η¹ = η⁰ + lrate * grad
-        # θ¹ = θ⁰ + lrage * grad
-        #η¹ = param.gradspace.f_inv(θ¹)
+        ξ⁰ = param._grad_map(η⁰)
+        ξ¹ = ξ⁰ + lrate*∇𝓛
+        η¹ = (param._grad_map^-1)(ξ¹)
         EFD.update!(param.posterior, η¹)
+        param._μ[:] = EFD.gradlognorm(param.posterior)
     end
 end
 

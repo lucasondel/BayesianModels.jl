@@ -35,9 +35,10 @@ function Base.show(io::IO, mime::MIME"text/plain", obj::T) where T<:BMObject
             io2 = IOContext(io, :indent => indent+2, :prefix => "($(name)): ")
             show(io2, mime, prop)
         elseif typeof(prop) <: BMObjectList
-            println(io, " "^(indent+2), "[")
-            for (i, param) in params
+            println(io, " "^(indent+2), "($name): [")
+            for (i, param) in enumerate(prop)
                 io2 = IOContext(io, :indent => indent+4, :prefix => "($(i)): ")
+                show(io2, mime, param)
             end
             println(io, " "^(indent+2), "]")
         end
