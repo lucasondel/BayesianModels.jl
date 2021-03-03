@@ -23,19 +23,26 @@ end
 Compute the natural gradient of the elbo w.r.t. to the posteriors'
 parameters.
 """
-function ∇elbo(model, args...; stats_scale = 1)
-    bayesparams = filter(isbayesparam, getparams(model))
-    P = Params([param._μ for param in bayesparams])
-    μgrads = gradient(() -> elbo(model, args..., stats_scale = stats_scale), P)
+function ∇elbo(model, args...; params, stats_scale = 1)
+    P = Params([param._μ for param in params])
+    𝓛, back = Zygote.pullback(() -> elbo(model, args..., stats_scale = stats_scale), P)
+
+    μgrads = back(1)
 
     grads = Dict()
-    for param in bayesparams
+    for param in params
         ∂𝓛_∂μ = μgrads[param._μ]
-        η = EFD.naturalparam(param.posterior)
-        J = FD.jacobian(param._grad_map, η)
+
+        # The next two lines are equivalent to:
+        #ξ = EFD.realform(param.posterior.param)
+        #J = inv(FD.jacobian(param.posterior.param.ξ_to_η, ξ))
+
+        η = EFD.naturalform(param.posterior.param)
+        J = FD.jacobian(param.posterior.param.η_to_ξ, η)
+
         grads[param] = J * ∂𝓛_∂μ
     end
-    grads
+    𝓛, grads
 end
 
 """
@@ -45,11 +52,8 @@ Update the parameters' posterior by doing one natural gradient steps.
 """
 function gradstep(param_grad; lrate::Real)
     for (param, ∇𝓛) in param_grad
-        η⁰ = EFD.naturalparam(param.posterior)
-        ξ⁰ = param._grad_map(η⁰)
-        ξ¹ = ξ⁰ + lrate*∇𝓛
-        η¹ = (param._grad_map^-1)(ξ¹)
-        EFD.update!(param.posterior, η¹)
+        ξ = param.posterior.param.ξ
+        ξ[:] = ξ + lrate*∇𝓛
         param._μ[:] = EFD.gradlognorm(param.posterior)
     end
 end

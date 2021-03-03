@@ -9,7 +9,7 @@ const BMObjectList{N,T<:BMObject} = NTuple{N,T}
 function iscomposite(obj::T) where T<:BMObject
     for name in fieldnames(typeof(obj))
         prop = getproperty(obj, name)
-        if typeof(prop) <: BayesParam
+        if typeof(prop) <: BMObject
             return true
         elseif typeof(prop) <: BMObjectList
             return true

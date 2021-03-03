@@ -26,6 +26,7 @@ include("invmap.jl")
 #######################################################################
 # BayesianModels generic object
 
+export iscomposite
 include("bmobj.jl")
 
 #######################################################################
@@ -72,8 +73,13 @@ include("elbo.jl")
 export Normal
 include("models/normal.jl")
 
-#export AffineTransform
-#include("models/affinetransform.jl")
+export HNormalDiag
+export AffineTransform
+include("models/affinetransform.jl")
+
+export GSM
+export newmodel
+include("models/gsm.jl")
 
 #export NormalDiag
 #include("models/normaldiag.jl")
