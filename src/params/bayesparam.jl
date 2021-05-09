@@ -2,49 +2,47 @@
 #
 # Lucas Ondel 2021
 
-_default_stats_fn(post, μ) = EFD.splitgrad(post, μ)
+abstract type AbstractBayesParameter{DT1,DT2} <: AbstractParameter end
+
+function Base.show(io::IO,
+                   obj::AbstractBayesParameter{DT1,DT2}) where {DT1,DT2}
+    print(io, "$(typeof(obj).name){$(DT1.name),$(DT2.name)}")
+end
 
 """
-    struct BayesParam{T,DT1,DT2} <: AbstractParam{T}
-        prior::DistType
-        posterior::DistType
-        ...
+    struct BayesParameter{T<:AbstractVector,DT1,DT2} <: AbstractParameter
+        prior::DT1
+        posterior::DT1
+        μ::T
     end
 
 Bayesian parameter, i.e. a parameter with a prior and a (variational)
 posterior. `DT1` is the type of distribution of the prior and `DT2` is
-the type of the distribution of the posterior.
+the type of the distribution of the posterior. `μ` is the vector of
+statistics of the parameter.
 
 # Constructor
 
-    BayesParam(prior, posterior, [stats_fn = ...::Function)
+    BayesParameter(prior, posterior)
 
-Create a parameter with a prior and a posterior. `prior` and
-`posterior` should have the same type. `stats_fn` is a function to
-get the sufficient statistics of the parameter wrt to the model.
+Create a parameter with a prior and a posterior.
 """
-struct BayesParam{T,DT1,DT2} <: AbstractParam{T}
+struct BayesParameter{DT1,DT2,T<:AbstractVector} <: AbstractBayesParameter{DT1,DT2}
     prior::DT1
     posterior::DT2
-
-    _stats_fn::Function
-    _μ::V where V <: AbstractVector{T}
-
-    function BayesParam(prior, posterior;
-                        stats_fn = (μ -> _default_stats_fn(posterior, μ)))
-        μ = EFD.gradlognorm(posterior)
-        T = eltype(μ)
-        new{T,typeof(prior),typeof(posterior)}(prior, posterior, stats_fn, μ)
-    end
+    μ::T
 end
 
-statistics(param::BayesParam) = param._stats_fn(param._μ)
+function BayesParameter(prior, posterior)
+    μ = EFD.gradlognorm(posterior)
+    BayesParameter(prior, posterior, μ)
+end
 
 """
     isbayesparam(p)
 
 Returns true if `p` is a `BayesianParam`.
 """
-isbayesparam(p) = typeof(p) <: BayesParam
+isbayesparam(p) = typeof(p) <: AbstractBayesParameter
 
 

@@ -9,10 +9,10 @@ Compute the Evidence Lower-BOund (ELBO) of the model. If `detailed` is
 set to `true` returns a tuple `elbo, loglikelihood, KL`.
 """
 function elbo(model, args...; detailed = false, stats_scale=1)
-    llh = sum(loglikelihood(model, args...))*stats_scale
-
     params = Zygote.@ignore filter(isbayesparam, getparams(model))
-    KL = sum(param -> EFD.kldiv(param.posterior, param.prior, μ = param._μ),
+
+    llh = sum(loglikelihood(model, args...))*stats_scale
+    KL = sum(param -> EFD.kldiv(param.posterior, param.prior, μ = param.μ),
              params)
     detailed ? (llh - KL, llh, KL) : llh - KL
 end

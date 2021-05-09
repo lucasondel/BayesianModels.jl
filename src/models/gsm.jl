@@ -8,12 +8,6 @@ struct GSM{ModelType} <: AbstractModel
     vec2params::Function
 end
 
-function newmodel(gsm::GSM{ModelType}, e::BayesParam) where ModelType
-    η = gsm.f(statistics(e) |> gsm.transform)
-    params = gsm.vec2params(η)
-    ModelType(params...)
-end
-
 function newmodel(gsm::GSM{ModelType}, embeddings) where ModelType
     E = [statistics(e) for e in embeddings]
     H = gsm.f.(E |> gsm.transform)

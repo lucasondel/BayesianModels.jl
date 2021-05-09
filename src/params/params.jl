@@ -3,57 +3,54 @@
 # Lucas Ondel 2021
 
 """
-    abstract type AbstractParam{T}
+    abstract type AbstractParameter
 
-Generic type for all parameters.
+Generic type for all parameters. Subtype of `AbstractParameter` should
+implement the property `μ` which is the model-dependent
+"canonical form" of the parameter.
 """
-abstract type AbstractParam{T} <: BMObject end
+abstract type AbstractParameter <: BMObject end
+
+#Base.getproperty(p::AbstractParameter, s::Symbol) = _getproperty(p, Val(s))
+#_getproperty(p::AbstractParameter, ::Val{T}) where T = getfield(p, T)
+#_getproperty(p::AbstractParameter, ::Val{:μ})
 
 """
-    statistics(param)
+    ParameterList{N,T<:AbstractParam}(m1, m2, m3, ...)
 
-Returns the statistics of the parameter.
-"""
-statistics(::AbstractParam)
-
-"""
-    ParamList{N,T}(m1, m2, m3, ...)
-
-Store a list of (bayesian) parameters for an object's attribute. `N`
-is the number of the parameters and `T` is the type of the parameters.
+Store a list of (parameters for an object's attribute. `N` is the
+number of the parameters and `T` is the type of the parameters.
 The list is immutable.
 
 # Constructor
 
-    ParamList(m1, m2, m3, ...)
-"""
-const ParamList{N,T<:AbstractParam} = NTuple{N,T}
+    ParameterList(m1, m2, m3, ...)
 
-ParamList(m...) = tuple(m...)
+"""
+const ParameterList{N,T<:AbstractParameter} = NTuple{N,T}
+ParameterList(m...) = tuple(m...)
 
 """
     getparams(obj)
 
 Returns a list of a all the parameters in `obj` and its
 attributes. Note that array of parameters and array of sub-models
-should be stored as [`BayesParamList`](@ref) and [`ModelList`](@ref)
+should be stored as [`BayesParameterList`](@ref) and [`ModelList`](@ref)
 respectively.
 """
 function getparams(obj)
-    params = Set{AbstractParam}()
+    params = Set{AbstractParameter}()
     for name in fieldnames(typeof(obj))
         prop = getproperty(obj, name)
-        if typeof(prop) <: AbstractParam
+        if typeof(prop) <: AbstractParameter
             push!(params, prop)
             push!.([params], getparams(prop))
-        elseif typeof(prop) <: ParamList
+        elseif typeof(prop) <: BMObjectList
             for item in prop
-                push!(params, item)
+                if typeof(item) <: AbstractParameter
+                    push!(params, item)
+                end
                 push!.([params], getparams(item))
-            end
-        elseif typeof(prop) <: ModelList
-            for m in prop
-                push!.([params], getparams(m))
             end
         else
             push!.([params], getparams(prop))

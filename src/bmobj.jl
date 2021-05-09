@@ -18,17 +18,21 @@ function iscomposite(obj::T) where T<:BMObject
     return false
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", obj::T) where T<:BMObject
+function Base.show(io::IO, obj::BMObject)
+    print(io, typeof(obj).name)
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", obj::BMObject)
     indent = get(io, :indent, 0)
     prefix = get(io, :prefix, "")
     parents = get(io, :parents, [])
 
     if ! iscomposite(obj)
-        println(io, " "^indent, prefix, typeof(obj))
+        println(io, " "^indent, prefix, obj)
         return
     end
 
-    println(io, " "^indent, prefix, typeof(obj), " (")
+    println(io, " "^indent, prefix, obj, " (")
     for name in fieldnames(typeof(obj))
         prop = getproperty(obj, name)
         if typeof(prop) <: BMObject
