@@ -45,6 +45,3 @@ function Base.show(io::IO, mime::MIME"text/plain", obj::T) where T<:BMObject
     end
     println(io, " "^indent, ")")
 end
-
-
-

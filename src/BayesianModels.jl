@@ -4,7 +4,6 @@ module BayesianModels
 # Setup/Utilities
 
 # Dependencies
-using BasicDataLoaders
 using Distributed
 import ExpFamilyDistributions
 import ForwardDiff
@@ -20,13 +19,11 @@ using Zygote: @adjoint
 @adjoint EFD.inv_vec_tril(M) = EFD.inv_vec_tril(M), Δ -> (EFD.vec_tril(Δ),)
 @adjoint EFD.vec_tril(v) = EFD.vec_tril(v), Δ -> (EFD.inv_vec_tril(Δ),)
 
-export InvertibleMap
 include("invmap.jl")
 
 #######################################################################
 # BayesianModels generic object
 
-export iscomposite
 include("bmobj.jl")
 
 #######################################################################

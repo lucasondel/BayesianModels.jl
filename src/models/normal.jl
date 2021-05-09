@@ -1,9 +1,4 @@
-# Normal (i.e. Gaussian) model.
-#
-# Lucas Ondel 2021
-
-#######################################################################
-# Model definition
+# Lucas Ondel, 2021
 
 """
     struct Normal{D} <: AbstractModel
@@ -18,10 +13,8 @@ struct Normal{D} <: AbstractModel
     Λ::T where T<:AbstractParam
 end
 
-#######################################################################
-# Model interface
-
-basemeasure(::Normal, x::AbstractVector{<:Real}) = -.5*length(x)*log(2π)
+basemeasure(::Normal, X::AbstractMatrix{T}) where T =
+    -.5*log(2π) * ones(T, size(X,2))
 
 function vectorize(m::Normal)
     diagΛ, trilΛ, lnΛ = statistics(m.Λ)
@@ -31,20 +24,16 @@ function vectorize(m::Normal)
     vcat(Λ*μ, -.5 * diagΛ, -trilΛ, -.5 * (tr_Λμμᵀ - lnΛ))
 end
 
-function statistics(::Normal, x::AbstractVector{<:Real})
-    xxᵀ = x*x'
-    vcat(x, diag(xxᵀ), EFD.vec_tril(xxᵀ), 1)
+function statistics(::Normal, X::AbstractMatrix{T}) where T
+    S1 = X
+    S2 = hcat([(xxᵀ = x*x'; vcat(diag(xxᵀ), EFD.vec_tril(xxᵀ), 1))
+               for x in eachcol(X)]...)
+    vcat(S1, S2)
 end
 
-function loglikelihood(m::Normal, x::AbstractVector{<:Real})
+function loglikelihood(m::Normal, X::AbstractMatrix)
     Tη = vectorize(m)
-    Tx = statistics(m, x)
-    dot(Tη, Tx) + basemeasure(m, x)
-end
-
-function loglikelihood(m::Normal, X::AbstractVector{<:AbstractVector})
-    Tη = vectorize(m)
-    TX = statistics.([m], X)
-    dot.([Tη], TX) .+ basemeasure.([m], X)
+    TX = statistics(m, X)
+    TX' * Tη .+ basemeasure(m, X)
 end
 

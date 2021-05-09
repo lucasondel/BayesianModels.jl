@@ -1,6 +1,4 @@
-# Computation of the Evidence Lower Bound (ELBO).
-#
-# Lucas Ondel 2021
+# Lucas Ondel, 2021
 
 """
     elbo(model, X[, detailed = false])
@@ -37,8 +35,9 @@ function ∇elbo(model, args...; params, stats_scale = 1)
         #ξ = EFD.realform(param.posterior.param)
         #J = inv(FD.jacobian(param.posterior.param.ξ_to_η, ξ))
 
-        η = EFD.naturalform(param.posterior.param)
-        J = FD.jacobian(param.posterior.param.η_to_ξ, η)
+        #η = EFD.naturalform(param.posterior.param)
+        #J = FD.jacobian(param.posterior.param.η_to_ξ, η)
+        J = EFD.jacobian(param.posterior.param)
 
         grads[param] = J * ∂𝓛_∂μ
     end
