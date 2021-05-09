@@ -32,28 +32,36 @@ include("bmobj.jl")
 export AbstractModel
 export ModelList
 
-export basemeasure
-export vectorize
-export statistics
-export loglikelihood
-
-include("model.jl")
-
 #######################################################################
-# Bayesian parameter
+# Model parameter
 
-export AbstractParam
-export ParamList
-export BayesParam
-export ConstParam
+export AbstractParameter
+export ParameterList
+export BayesParameter
+export ConstParameter
 
 export getparams
 export isbayesparam
 
 include("params/params.jl")
 
-#include("bayesparam.jl")
+#######################################################################
+# Model
 
+export AbstractModel
+export loglikelihood
+
+export ModelList
+
+export Normal
+
+export HNormalDiag
+export AffineTransform
+
+export GSM
+export newmodel
+
+include("models/models.jl")
 
 #######################################################################
 # Objective function
@@ -63,26 +71,6 @@ export ∇elbo
 export gradstep
 
 include("elbo.jl")
-
-#######################################################################
-# Models
-
-export Normal
-include("models/normal.jl")
-
-export HNormalDiag
-export AffineTransform
-include("models/affinetransform.jl")
-
-export GSM
-export newmodel
-include("models/gsm.jl")
-
-#export NormalDiag
-#include("models/normaldiag.jl")
-
-#export Mixture
-#include("models/mixture.jl")
 
 end # module
 

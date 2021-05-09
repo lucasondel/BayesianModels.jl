@@ -1,4 +1,13 @@
-# Lucas Ondel, 2021
+# Normal model.
+#
+# Lucas Ondel 2021
+
+#######################################################################
+# Model definition
+
+abstract type Normal{D} <: AbstractModel end
+
+Base.show(io::IO, normal::Normal) = print(io, typeof(normal))
 
 """
     struct Normal{D} <: AbstractModel
@@ -8,9 +17,14 @@
 
 Normal distribution.
 """
-struct Normal{D} <: AbstractModel
-    μ::T where T<:AbstractParam
-    Λ::T where T<:AbstractParam
+struct NormalIndParams{P1<:AbstractParameter,P2<:AbstractParameter,D} <: Normal{D}
+    μ::P1
+    Λ::P2
+
+
+    function NormalIndParams(μ, Λ)
+
+    end
 end
 
 basemeasure(::Normal, X::AbstractMatrix{T}) where T =

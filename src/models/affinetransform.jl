@@ -14,8 +14,8 @@
 Affine transform.
 """
 struct AffineTransform{D,Q} <: BMObject
-    W::ParamList
-    b::AbstractParam
+    W::ParameterList
+    b::AbstractParameter
 end
 
 function (trans::AffineTransform)(x::AbstractVector{<:Number})
@@ -37,9 +37,9 @@ function DefaultHNormalDiagParameter(μ::AbstractVector{T}) where T
     EFD.Parameter(μ, identity, identity)
 end
 
-struct HNormalDiag{D} <: BMObject #<: EFD.AbstractNormal{D}
-    αs::ParamList
-    param::EFD.Parameter{T} where T
+struct HNormalDiag{D} <: BMObject
+    αs::ParameterList
+    param::EFD.AbstractParameter{T} where T
 end
 
 function HNormalDiag(αs, μ::AbstractVector{T}) where T
