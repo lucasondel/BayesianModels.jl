@@ -3,16 +3,12 @@ module BayesianModels
 #######################################################################
 # Setup/Utilities
 
-# Dependencies
-using Distributed
 import ExpFamilyDistributions
-import ForwardDiff
 using LinearAlgebra
 using StatsFuns: logsumexp
 using Zygote
 
 const EFD = ExpFamilyDistributions
-const FD = ForwardDiff
 
 # Make sure that these function are differentiable by Zygote
 using Zygote: @adjoint
@@ -27,39 +23,22 @@ include("invmap.jl")
 include("bmobj.jl")
 
 #######################################################################
-# Model
-
-export AbstractModel
-export ModelList
-
-#######################################################################
 # Model parameter
 
 export AbstractParameter
 export ParameterList
-export BayesParameter
+export BayesianParameter
 export ConstParameter
 
 export getparams
-export isbayesparam
+export isbayesianparam
 
 include("params/params.jl")
 
 #######################################################################
 # Model
 
-export AbstractModel
 export loglikelihood
-
-export ModelList
-
-export Normal
-
-export HNormalDiag
-export AffineTransform
-
-export GSM
-export newmodel
 
 include("models/models.jl")
 

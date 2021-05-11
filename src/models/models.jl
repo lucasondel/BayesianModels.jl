@@ -2,9 +2,6 @@
 #
 # Lucas Ondel 2021
 
-#######################################################################
-# Base type
-
 """
     abstract type AbstractModel
 
@@ -12,8 +9,6 @@ AbstractType of (Bayesian) models.
 """
 abstract type AbstractModel <: BMObject end
 
-#######################################################################
-# Model interface
 
 """
     loglikelihood(model, X)
@@ -21,9 +16,6 @@ abstract type AbstractModel <: BMObject end
 Returns the log-likelihood of `model` of each data sample of `X`.
 """
 loglikelihood
-
-#######################################################################
-# List type
 
 """
     ModelList{N,T}(m1, m2, m3, ...)
@@ -35,11 +27,8 @@ immutable.
 const ModelList{N,T<:AbstractModel} = NTuple{N,T}
 
 
-#######################################################################
-# Concrete models
-
-include("affinetransform.jl")
-include("gsm.jl")
+#include("affinetransform.jl")
+#include("gsm.jl")
 include("normal.jl")
 #include("normaldiag.jl")
 

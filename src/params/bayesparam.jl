@@ -2,15 +2,9 @@
 #
 # Lucas Ondel 2021
 
-abstract type AbstractBayesParameter{DT1,DT2} <: AbstractParameter end
-
-function Base.show(io::IO,
-                   obj::AbstractBayesParameter{DT1,DT2}) where {DT1,DT2}
-    print(io, "$(typeof(obj).name){$(DT1.name),$(DT2.name)}")
-end
 
 """
-    struct BayesParameter{T<:AbstractVector,DT1,DT2} <: AbstractParameter
+    struct BayesianParameter{DT1,DT2,T<:AbstractVector} <: AbstractParameter
         prior::DT1
         posterior::DT1
         μ::T
@@ -23,26 +17,28 @@ statistics of the parameter.
 
 # Constructor
 
-    BayesParameter(prior, posterior)
+    BayesianParameter(prior, posterior)
 
 Create a parameter with a prior and a posterior.
 """
-struct BayesParameter{DT1,DT2,T<:AbstractVector} <: AbstractBayesParameter{DT1,DT2}
+struct BayesianParameter{DT1,DT2,T<:AbstractVector} <: AbstractParameter
     prior::DT1
     posterior::DT2
     μ::T
 end
 
-function BayesParameter(prior, posterior)
+function BayesianParameter(prior, posterior)
     μ = EFD.gradlognorm(posterior)
-    BayesParameter(prior, posterior, μ)
+    BayesianParameter(prior, posterior, μ)
 end
+
+statistics(p::BayesianParameter) = EFD.splitgrad(p.posterior, p.μ)
 
 """
     isbayesparam(p)
 
 Returns true if `p` is a `BayesianParam`.
 """
-isbayesparam(p) = typeof(p) <: AbstractBayesParameter
+isbayesianparam(p) = typeof(p) <: BayesianParameter
 
 
