@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 # Invertible function
 #
 # Lucas Ondel 2021

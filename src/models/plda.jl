@@ -1,6 +1,4 @@
-# Probabilistic Linear Discriminant Analysis (PLDA) model.
-#
-# Lucas Ondel 2020
+# SPDX-License-Identifier: MIT
 
 #######################################################################
 # Model definition

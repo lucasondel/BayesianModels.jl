@@ -1,6 +1,4 @@
-# Generic type for all object of the package.
-#
-# Lucas Ondel 2021
+# SPDX-License-Identifier: MIT
 
 abstract type BMObject end
 

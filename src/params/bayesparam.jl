@@ -1,7 +1,4 @@
-# Bayesian parameter, i.e. parameter with a prior/posterior.
-#
-# Lucas Ondel 2021
-
+# SPDX-License-Identifier: MIT
 
 """
     struct BayesianParameter{DT1,DT2,T<:AbstractVector} <: AbstractParameter

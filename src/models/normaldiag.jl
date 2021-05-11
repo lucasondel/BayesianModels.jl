@@ -1,6 +1,4 @@
-# Normal (i.e. Gaussian) model.
-#
-# Lucas Ondel 2021
+# SPDX-License-Identifier: MIT
 
 #######################################################################
 # Model definition

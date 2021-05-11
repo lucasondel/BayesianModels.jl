@@ -1,6 +1,4 @@
-# Probabilistic Principal Components Analysis (PPCA) model.
-#
-# Lucas Ondel 2020
+# SPDX-License-Identifier: MIT
 
 #######################################################################
 # Model definition

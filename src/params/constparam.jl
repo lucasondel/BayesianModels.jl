@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 # Constant parameter.
 #
 # Lucas Ondel 2021

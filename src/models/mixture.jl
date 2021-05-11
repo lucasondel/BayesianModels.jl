@@ -1,6 +1,4 @@
-# Mixture model.
-#
-# Lucas Ondel 2021
+# SPDX-License-Identifier: MIT
 
 #######################################################################
 # Model definition

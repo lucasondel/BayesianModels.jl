@@ -1,6 +1,4 @@
-# Generalized Subspace Model (GSM)
-#
-# Lucas Ondel 2021
+# SPDX-License-Identifier: MIT
 
 struct GSM{ModelType} <: AbstractModel
     transform::AffineTransform

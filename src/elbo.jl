@@ -1,4 +1,4 @@
-# Lucas Ondel, 2021
+# SPDX-License-Identifier: MIT
 
 """
     elbo(model, X[, detailed = false])
@@ -30,15 +30,7 @@ function ∇elbo(model, args...; params, stats_scale = 1)
     grads = Dict()
     for param in params
         ∂𝓛_∂μ = μgrads[param.μ]
-
-        # The next two lines are equivalent to:
-        #ξ = EFD.realform(param.posterior.param)
-        #J = inv(FD.jacobian(param.posterior.param.ξ_to_η, ξ))
-
-        #η = EFD.naturalform(param.posterior.param)
-        #J = FD.jacobian(param.posterior.param.η_to_ξ, η)
         J = EFD.jacobian(param.posterior.param)
-
         grads[param] = J * ∂𝓛_∂μ
     end
     𝓛, grads

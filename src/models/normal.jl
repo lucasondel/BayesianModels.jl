@@ -1,6 +1,4 @@
-# Normal model.
-#
-# Lucas Ondel 2021
+# SPDX-License-Identifier: MIT
 
 abstract type Normal{D} <: AbstractModel end
 

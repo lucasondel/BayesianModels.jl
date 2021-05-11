@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 module BayesianModels
 
 #######################################################################
@@ -14,8 +16,6 @@ const EFD = ExpFamilyDistributions
 using Zygote: @adjoint
 @adjoint EFD.inv_vec_tril(M) = EFD.inv_vec_tril(M), Δ -> (EFD.vec_tril(Δ),)
 @adjoint EFD.vec_tril(v) = EFD.vec_tril(v), Δ -> (EFD.inv_vec_tril(Δ),)
-
-include("invmap.jl")
 
 #######################################################################
 # BayesianModels generic object

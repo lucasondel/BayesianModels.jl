@@ -1,6 +1,4 @@
-# Models' parameter object
-#
-# Lucas Ondel 2021
+# SPDX-License-Identifier: MIT
 
 """
     abstract type AbstractParameter
@@ -10,10 +8,6 @@ implement the property `μ` which is the model-dependent
 "canonical form" of the parameter.
 """
 abstract type AbstractParameter <: BMObject end
-
-#Base.getproperty(p::AbstractParameter, s::Symbol) = _getproperty(p, Val(s))
-#_getproperty(p::AbstractParameter, ::Val{T}) where T = getfield(p, T)
-#_getproperty(p::AbstractParameter, ::Val{:μ})
 
 """
     ParameterList{N,T<:AbstractParam}(m1, m2, m3, ...)

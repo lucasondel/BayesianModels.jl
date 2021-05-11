@@ -1,6 +1,4 @@
-# Generic type model.
-#
-# Lucas Ondel 2021
+# SPDX-License-Identifier: MIT
 
 """
     abstract type AbstractModel

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+
 # Helper functions for plotting 2D-Normal pdfs.
 # Lucas Ondel, 2021
 
