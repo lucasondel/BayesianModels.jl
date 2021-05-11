@@ -37,5 +37,3 @@ statistics(p::BayesianParameter) = EFD.splitgrad(p.posterior, p.μ)
 Returns true if `p` is a `BayesianParam`.
 """
 isbayesianparam(p) = typeof(p) <: BayesianParameter
-
-

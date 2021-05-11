@@ -16,10 +16,6 @@ function iscomposite(obj::T) where T<:BMObject
     return false
 end
 
-function Base.show(io::IO, obj::BMObject)
-    print(io, typeof(obj).name)
-end
-
 function Base.show(io::IO, mime::MIME"text/plain", obj::BMObject)
     indent = get(io, :indent, 0)
     prefix = get(io, :prefix, "")
