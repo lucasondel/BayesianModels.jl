@@ -3,14 +3,13 @@
 module BayesianModels
 
 #######################################################################
-# Setup/Utilities
+# Dependencies
 
 import ExpFamilyDistributions
+const EFD = ExpFamilyDistributions
 using LinearAlgebra
 using StatsFuns: logsumexp
 using Zygote
-
-const EFD = ExpFamilyDistributions
 
 # Make sure that these function are differentiable by Zygote
 using Zygote: @adjoint
@@ -34,16 +33,19 @@ export getparams
 export isbayesianparam
 
 include("params/params.jl")
+include("params/bayesparam.jl")
+include("params/constparam.jl")
 
 #######################################################################
 # Model
 
 export loglikelihood
+export predict
 
 include("models/models.jl")
 
 #######################################################################
-# Objective function
+# Optimization API
 
 export elbo
 export ∇elbo

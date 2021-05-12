@@ -17,7 +17,10 @@ Constant parameter.
 
 Create a constant parameter.
 """
-struct ConstParam{T<:AbstractVector} <: AbstractParameter
+struct ConstParameter{T<:AbstractVector} <: AbstractParameter
     μ::T
+    _stats::Function
 end
+
+statistics(param::ConstParameter) = param._stats(param.μ)
 

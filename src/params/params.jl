@@ -55,6 +55,10 @@ function getparams(obj)
     [params...]
 end
 
-include("bayesparam.jl")
-include("constparam.jl")
+"""
+    statistics(param)
 
+Returns the sufficient statistics of the `param` for the model it
+belongs to.
+"""
+statistics
