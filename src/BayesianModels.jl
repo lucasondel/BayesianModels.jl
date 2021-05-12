@@ -44,6 +44,13 @@ export predict
 
 include("models/models.jl")
 
+export Mixture
+export Normal
+export NormalDiag
+
+include("models/mixture.jl")
+include("models/normal.jl")
+
 #######################################################################
 # Optimization API
 

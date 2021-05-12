@@ -9,8 +9,6 @@ implement the property `μ` which is the model-dependent
 """
 abstract type AbstractParameter <: BMObject end
 
-Base.show(io::IO, obj::AbstractParameter) = print(io, typeof(obj).name.wrapper)
-
 """
     ParameterList{N,T<:AbstractParam}(m1, m2, m3, ...)
 

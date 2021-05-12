@@ -22,11 +22,11 @@ function Base.show(io::IO, mime::MIME"text/plain", obj::BMObject)
     parents = get(io, :parents, [])
 
     if ! iscomposite(obj)
-        println(io, " "^indent, prefix, obj)
+        println(io, " "^indent, prefix, typeof(obj))
         return
     end
 
-    println(io, " "^indent, prefix, obj, " (")
+    println(io, " "^indent, prefix, typeof(obj), " (")
     for name in fieldnames(typeof(obj))
         prop = getproperty(obj, name)
         if typeof(prop) <: BMObject

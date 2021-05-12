@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-abstract type AbstractMixture{C} <: AbstractModel end
-
-basemeasure(m::Mixture, x::AbstractVector) = basemeasure(m.components[1], x)
+abstract type AbstractMixture{C} <: AbstractLatentVariableModel end
 
 """
     struct Mixture{C,M} <: AbstractMixture
@@ -18,6 +16,8 @@ struct Mixture{C,M<:AbstractModel} <: AbstractMixture{C}
     components::ModelList{C,M}
 end
 
+basemeasure(m::Mixture, x::AbstractVector) = basemeasure(m.components[1], x)
+
 function Mixture(;components, pstrength = 1)
     C = length(components)
     πprior = EFD.Dirichlet(pstrength .* ones(C) ./ C)
@@ -31,20 +31,11 @@ function vectorize(m::Mixture{C,M}) where {C,M}
     hcat([vcat(vectorize(m.components[i]), lnπ[i]) for i in 1:C]...)
 end
 
-function predict(m::Mixture, X::AbstractMatrix; return_stats = false)
+function predict(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
     TX = statistics(m, X)
     r = TH' * TX
-    γ = exp.(r .- logsumexp(r, dims = 1))
-    return return_stats ? (γ, TX) : γ
-end
-
-function predict(m::Mixture, TH::AbstractMatrix, TX::AbstractMatrix)
-    TH = vectorize(m)
-    TX = statistics(m, X)
-    r = TH' * TX
-    γ = exp.(r .- logsumexp(r, dims = 1))
-    return return_stats ? (γ, TX) : γ
+    exp.(r .- logsumexp(r, dims = 1))
 end
 
 function statistics(m::Mixture, X::AbstractMatrix)
