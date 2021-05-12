@@ -1,99 +1,64 @@
 # SPDX-License-Identifier: MIT
 
-#######################################################################
-# Model definition
+abstract type AbstractMixture{C} <: AbstractModel end
+
+basemeasure(m::Mixture, x::AbstractVector) = basemeasure(m.components[1], x)
 
 """
-    struct Mixture{C} <: AbstractModel
+    struct Mixture{C,M} <: AbstractMixture
         π
         components
     end
 
-Mixture model. `C` is the number of  components.
+Mixture model. `C` is the number of  components and `M` is the type of
+the components.
 """
-struct Mixture{C} <: AbstractModel
-    π::T where T<:BayesParam
-    components::ModelList{C,T} where T<:AbstractModel
+struct Mixture{C,M<:AbstractModel} <: AbstractMixture{C}
+    π::P where P <: AbstractParameter
+    components::ModelList{C,M}
 end
 
 function Mixture(;components, pstrength = 1)
     C = length(components)
-    πprior = Dirichlet(pstrength .* ones(C) ./ C)
-    πposterior = Dirichlet(pstrength .* ones(C) ./ C)
-    π = BayesParam(πprior, πposterior)
-    Mixture{C}(π, tuple(components...))
+    πprior = EFD.Dirichlet(pstrength .* ones(C) ./ C)
+    πposterior = EFD.Dirichlet(pstrength .* ones(C) ./ C)
+    π = BayesianParameter(πprior, πposterior)
+    Mixture{C,eltype(components)}(π, tuple(components...))
 end
 
-#######################################################################
-# Pretty print
-
-function Base.show(io::IO, ::MIME"text/plain", m::Mixture)
-    println(io, typeof(m), ":")
-    println(io, "  π: $(typeof(m.π))")
-    println(io, "  components: $(typeof(m.components))")
+function vectorize(m::Mixture{C,M}) where {C,M}
+    lnπ = statistics(m.π)
+    hcat([vcat(vectorize(m.components[i]), lnπ[i]) for i in 1:C]...)
 end
 
-#######################################################################
-# Estimate the latent variables
-
-function (m::Mixture)(X::AbstractVector{<:Real})
+function predict(m::Mixture, X::AbstractMatrix; return_stats = false)
     TH = vectorize(m)
-    Tx = statistics(m, X)
-    r = dot.(TH, [Tx])
-    exp.(r .- logsumexp(r))
+    TX = statistics(m, X)
+    r = TH' * TX
+    γ = exp.(r .- logsumexp(r, dims = 1))
+    return return_stats ? (γ, TX) : γ
 end
 
-function (m::Mixture)(X::AbstractVector)
+function predict(m::Mixture, TH::AbstractMatrix, TX::AbstractMatrix)
     TH = vectorize(m)
-    TX = statistics.([m], X)
-    retval = []
-    for Tx in TX
-        r = dot.(TH, [Tx])
-        push!(retval, exp.(r .- logsumexp(r)))
-    end
-    retval
+    TX = statistics(m, X)
+    r = TH' * TX
+    γ = exp.(r .- logsumexp(r, dims = 1))
+    return return_stats ? (γ, TX) : γ
 end
 
-#######################################################################
-# Model interface
-
-basemeasure(m::Mixture, x::AbstractVector{<:Real}) = basemeasure(m.components[1], x)
-
-function vectorize(m::Mixture)
-    lnπ = gradlognorm(m.π.posterior)
-    [vcat(vectorize(c), lnπᵢ) for (c, lnπᵢ) in zip(m.components, lnπ)]
+function statistics(m::Mixture, X::AbstractMatrix)
+    one_const = similar(X, eltype(X), (1,size(X,2)))
+    fill!(one_const, 1)
+    vcat(statistics(m.components[1], X), one_const)
 end
 
-function statistics(m::Mixture, x::AbstractVector{<:Real})
-    vcat(statistics(m.components[1], x), 1)
-end
-
-function loglikelihood(m::Mixture, x::AbstractVector{<:Real})
+function loglikelihood(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
-    Tx = statistics(m, x)
-    logsumexp(dot.(TH, [Tx]) .+ basemeasure(m, x))
+    TX = Zygote.@ignore statistics(m, X)
+    r = TH' * TX
+    lnγ = Zygote.@ignore r .- logsumexp(r, dims = 1)
+    γ = Zygote.@ignore exp.(lnγ)
+    exp_llh = γ .* r
+    sum(exp_llh, dims = 1)' .- sum(γ .* lnγ, dims = 1)'
 end
-
-function loglikelihood(m::Mixture, X::AbstractVector{<:AbstractVector})
-    TH = vectorize(m)
-    TX = statistics.([m], X)
-    BX = basemeasure.([m], X)
-    [logsumexp(dot.(TH, [Tx]) .+ Bx) for (Tx, Bx) in zip(TX, BX)]
-end
-
-function getparam_stats(m::Mixture, X, resps)
-    q_z = X |> m
-    π_s = πstats(m, q_z)
-    retval = Dict{BayesParam, Vector}(m.π => π_s)
-    for (i, comp) in enumerate(m.components)
-        merge!(retval, getparam_stats(comp, X, getindex.(q_z, i) .* resps))
-    end
-    retval
-end
-getparam_stats(m::Mixture, X) = getparam_stats(m, X, ones(eltype(X[1]), length(X)))
-
-#######################################################################
-# π statistics
-
-πstats(m::Mixture, resps) = sum(resps)
-

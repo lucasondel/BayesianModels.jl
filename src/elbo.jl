@@ -10,8 +10,8 @@ function elbo(model, args...; detailed = false, stats_scale=1)
     llh = sum(loglikelihood(model, args...))*stats_scale
 
     params = Zygote.@ignore filter(isbayesianparam, getparams(model))
-    KL = sum(param -> EFD.kldiv(param.posterior, param.prior, μ = param.μ),
-             params)
+    KL = sum([EFD.kldiv(param.posterior, param.prior, μ = param.μ)
+              for param in params])
     detailed ? (llh - KL, llh, KL) : llh - KL
 end
 

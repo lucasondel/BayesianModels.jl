@@ -28,5 +28,5 @@ const ModelList{N,T<:AbstractModel} = NTuple{N,T}
 #include("affinetransform.jl")
 #include("gsm.jl")
 include("normal.jl")
-#include("normaldiag.jl")
+include("mixture.jl")
 
