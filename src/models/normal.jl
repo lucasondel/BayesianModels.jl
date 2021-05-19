@@ -17,7 +17,8 @@ end
 function loglikelihood(m::AbstractNormal, X::AbstractMatrix)
     Tη = vectorize(m)
     TX = Zygote.@ignore statistics(m, X)
-    TX' * Tη .+ basemeasure(m, X)
+    BX = Zygote.@ignore basemeasure(m, X)
+    TX' * Tη .+ BX
 end
 
 """

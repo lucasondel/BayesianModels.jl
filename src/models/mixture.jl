@@ -28,7 +28,8 @@ end
 
 function vectorize(m::Mixture{C,M}) where {C,M}
     lnπ = statistics(m.π)
-    hcat([vcat(vectorize(m.components[i]), lnπ[i]) for i in 1:C]...)
+    vcat(hcat(vectorize.(m.components)...), lnπ')
+    #hcat([vcat(vectorize(m.components[i]), lnπ[i]) for i in 1:C]...)
 end
 
 function predict(m::Mixture, X::AbstractMatrix)
@@ -48,6 +49,8 @@ function loglikelihood(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
     TX = Zygote.@ignore statistics(m, X)
     r = TH' * TX
+    lnγ = r .- logsumexp(r, dims = 1)
+    γ = exp.(lnγ)
     lnγ = Zygote.@ignore r .- logsumexp(r, dims = 1)
     γ = Zygote.@ignore exp.(lnγ)
     exp_llh = γ .* r

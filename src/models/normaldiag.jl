@@ -49,16 +49,16 @@ end
 statistics(m::NormalDiag, x::AbstractVector{<:Real}) = vcat(x, x.^2, 1)
 
 function loglikelihood(m::NormalDiag, x::AbstractVector{<:Real})
-    D = length(x)
+    D = @Zygote.ignore length(x)
     Tη = vectorize(m)
-    Tx = statistics(m, x)
+    Tx = @Zygote.ignore statistics(m, x)
     Tη'*Tx + basemeasure(m, x)
 end
 
 function loglikelihood(m::NormalDiag, X::AbstractVector{<:AbstractVector})
-    D = length(X[1])
+    D = @Zygote.ignore length(X[1])
     Tη = vectorize(m)
-    TX = statistics.([m], X)
+    TX = @Zygote.ignore statistics.([m], X)
     dot.([Tη], TX) .+ basemeasure.([m], X)
 end
 
