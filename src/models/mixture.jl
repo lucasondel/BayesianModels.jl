@@ -36,7 +36,7 @@ function predict(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
     TX = statistics(m, X)
     r = TH' * TX
-    exp.(r .- logsumexp(r, dims = 1))
+    exp.(r .- logsumexp_dim1(r))
 end
 
 function statistics(m::Mixture, X::AbstractMatrix)
@@ -47,12 +47,10 @@ end
 
 function loglikelihood(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
-    TX = Zygote.@ignore statistics(m, X)
+    TX = statistics(m, X)
     r = TH' * TX
-    lnγ = r .- logsumexp(r, dims = 1)
+    lnγ = r .- logsumexp_dim1(r)
     γ = exp.(lnγ)
-    lnγ = Zygote.@ignore r .- logsumexp(r, dims = 1)
-    γ = Zygote.@ignore exp.(lnγ)
     exp_llh = γ .* r
     sum(exp_llh, dims = 1)' .- sum(γ .* lnγ, dims = 1)'
 end

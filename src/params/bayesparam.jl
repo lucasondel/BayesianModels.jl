@@ -18,7 +18,7 @@ statistics of the parameter.
 
 Create a parameter with a prior and a posterior.
 """
-struct BayesianParameter{DT1,DT2,T<:AbstractVector} <: AbstractParameter
+struct BayesianParameter{DT1,DT2,T} <: AbstractParameter
     prior::DT1
     posterior::DT2
     μ::T
@@ -26,7 +26,7 @@ end
 
 function BayesianParameter(prior, posterior)
     μ = EFD.gradlognorm(posterior)
-    BayesianParameter(prior, posterior, μ)
+    BayesianParameter(prior, posterior, Param(μ))
 end
 
 statistics(p::BayesianParameter) = EFD.splitgrad(p.posterior, p.μ)

@@ -16,8 +16,8 @@ end
 
 function loglikelihood(m::AbstractNormal, X::AbstractMatrix)
     Tη = vectorize(m)
-    TX = Zygote.@ignore statistics(m, X)
-    BX = Zygote.@ignore basemeasure(m, X)
+    TX = statistics(m, X)
+    BX = basemeasure(m, X)
     TX' * Tη .+ BX
 end
 
@@ -36,8 +36,9 @@ end
 
 function vectorize(m::NormalIndependentParams)
     diagΛ, trilΛ, lnΛ = statistics(m.Λ)
-    Λ = EFD.matrix(diagΛ, trilΛ)
     μ, diag_μμᵀ, tril_μμᵀ = statistics(m.μ)
+    Λ = EFD.matrix(diagΛ, trilΛ)
+    μμᵀ = EFD.matrix(diag_μμᵀ, tril_μμᵀ)
     tr_Λμμᵀ = dot(diagΛ, diag_μμᵀ) + 2*dot(trilΛ, tril_μμᵀ)
     vcat(Λ*μ, -.5 * diagΛ, -trilΛ, -.5 * (tr_Λμμᵀ - lnΛ))
 end
@@ -46,7 +47,7 @@ function Normal(T, D; W₀ = Matrix{T}(I, D, D), μ₀ = zeros(T, D),
                 Σ₀ = Matrix{T}(I, D, D), σ = 0, pstrength = 1)
 
     μ = BayesianParameter(EFD.Normal(μ₀, pstrength * Σ₀),
-                          EFD.Normal(μ₀ .+ randn(T, D) .* σ, pstrength * Σ₀))
+                          EFD.Normal(μ₀ .+ randn(T, D) .* σ, (1/pstrength) * Σ₀))
     Λ = BayesianParameter(EFD.Wishart(W₀, D - 1 + pstrength),
                           EFD.Wishart(W₀, D - 1 + pstrength))
     NormalIndependentParams{D}(μ, Λ)

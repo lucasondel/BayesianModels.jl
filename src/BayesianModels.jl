@@ -2,57 +2,36 @@
 
 module BayesianModels
 
-#######################################################################
-# Dependencies
-
+using AutoGrad
 import ExpFamilyDistributions
 const EFD = ExpFamilyDistributions
 using LinearAlgebra
-using StatsFuns: logsumexp
-using Zygote
+import StatsFuns
 
-#######################################################################
-# BayesianModels generic object
+# Primitive to differentiate packed pos. def. matrix
+@primitive EFD.matrix(diagM, trilM),dM diag(dM) EFD.vec_tril(dM) + EFD.vec_tril(dM')
+@primitive EFD.inv_vec_tril(v),dM EFD.vec_tril(dM)
+@primitive EFD.vec_tril(M),dv EFD.inv_vec_tril(dv)
+
+logsumexp_dim1(x) = StatsFuns.logsumexp(x, dims = 1)
+@primitive logsumexp_dim1(x),dy,y (dy .* exp.(x .- y))
 
 include("bmobj.jl")
 
-#######################################################################
-# Model parameter
-
-export AbstractParameter
-export ParameterList
-export BayesianParameter
-export ConstParameter
-
-export getparams
-export isbayesianparam
-
+export getparams, isbayesianparam
 include("params/params.jl")
 include("params/bayesparam.jl")
 include("params/constparam.jl")
 
-#######################################################################
-# Model
-
-export loglikelihood
-export predict
-
+export loglikelihood, predict
 include("models/models.jl")
 
-export Mixture
-export Normal
-export NormalDiag
-
+export Mixture, Normal, NormalDiag
 include("models/mixture.jl")
 include("models/normal.jl")
 
-#######################################################################
-# Optimization API
 
-export elbo
-export ∇elbo
-export gradstep
-
+export elbo, ∇elbo, gradstep
 include("elbo.jl")
 
 end # module
