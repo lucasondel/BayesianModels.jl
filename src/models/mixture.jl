@@ -28,8 +28,8 @@ end
 
 function vectorize(m::Mixture{C,M}) where {C,M}
     lnπ = statistics(m.π)
-    vcat(hcat(vectorize.(m.components)...), lnπ')
-    #hcat([vcat(vectorize(m.components[i]), lnπ[i]) for i in 1:C]...)
+    #vcat(hcat(vectorize.(m.components)...), lnπ')
+    hcat([vcat(vectorize(m.components[i]), lnπ[i]) for i in 1:C]...)
 end
 
 function predict(m::Mixture, X::AbstractMatrix)
