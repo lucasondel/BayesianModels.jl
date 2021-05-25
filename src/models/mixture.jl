@@ -11,7 +11,7 @@ abstract type AbstractMixture{C} <: AbstractLatentVariableModel end
 Mixture model. `C` is the number of  components and `M` is the type of
 the components.
 """
-struct Mixture{C,M<:AbstractModel} <: AbstractMixture{C}
+mutable struct Mixture{C,M<:AbstractModel} <: AbstractMixture{C}
     π::P where P <: AbstractParameter
     components::ModelList{C,M}
 end
@@ -28,15 +28,14 @@ end
 
 function vectorize(m::Mixture{C,M}) where {C,M}
     lnπ = statistics(m.π)
-    #vcat(hcat(vectorize.(m.components)...), lnπ')
-    hcat([vcat(vectorize(m.components[i]), lnπ[i]) for i in 1:C]...)
+    vcat(hcat(vectorize.(m.components)...), lnπ')
 end
 
 function predict(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
     TX = statistics(m, X)
     r = TH' * TX
-    exp.(r .- logsumexp_dim1(r))
+    exp.(r .- logsumexp(r, dims = 1))
 end
 
 function statistics(m::Mixture, X::AbstractMatrix)
@@ -49,8 +48,7 @@ function loglikelihood(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
     TX = statistics(m, X)
     r = TH' * TX
-    lnγ = r .- logsumexp_dim1(r)
-    γ = exp.(lnγ)
-    exp_llh = γ .* r
-    sum(exp_llh, dims = 1)' .- sum(γ .* lnγ, dims = 1)'
+    lnγ = r .- logsumexp(r, dims = 1)
+    γ = _dropgrad(exp.(lnγ))
+    sum(γ .* r, dims = 1)' .- sum(γ .* lnγ, dims = 1)'
 end
