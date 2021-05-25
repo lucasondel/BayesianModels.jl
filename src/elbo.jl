@@ -12,12 +12,14 @@ for those parameters.
 elbo
 
 function elbo(model, args...; detailed = false, stats_scale = 1)
-    llh = sum(loglikelihood(model, args...))*stats_scale
+    llh = loglikelihood(model, args...)
+    T = eltype(llh)
+    sllh = sum(llh)*T(stats_scale)
 
     params = filter(isbayesianparam, getparams(model))
     KL = sum([EFD.kldiv(param.posterior, param.prior, μ = param.μ)
               for param in params])
-    detailed ? (llh - KL, llh, KL) : llh - KL
+    detailed ? (sllh - KL, sllh, KL) : sllh - KL
 end
 
 function _diagonal(param)
@@ -27,13 +29,12 @@ function _diagonal(param)
 end
 
 function ∇elbo(model, args...; detailed = false, stats_scale = 1, params)
-    𝓛 = @diff elbo(model, args...; detailed, stats_scale)
+    𝓛 = CUDA.@allowscalar @diff elbo(model, args...; detailed, stats_scale)
 
     grads = Dict()
     for param in params
         ∂𝓛_∂μ = grad(𝓛, param.μ)
-        #J = EFD.jacobian(param.posterior.param)
-        J = _diagonal(param.posterior.param)
+        J = EFD.jacobian(param.posterior.param)
         grads[param] = J * ∂𝓛_∂μ
     end
     value(𝓛), grads

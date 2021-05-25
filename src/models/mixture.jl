@@ -18,13 +18,14 @@ end
 
 basemeasure(m::Mixture, x::AbstractVector) = basemeasure(m.components[1], x)
 
-function Mixture(;components, pstrength = 1)
+function Mixture(T ;components, pstrength = 1)
     C = length(components)
-    πprior = EFD.Dirichlet(pstrength .* ones(C) ./ C)
-    πposterior = EFD.Dirichlet(pstrength .* ones(C) ./ C)
+    πprior = EFD.Dirichlet(T(pstrength) .* ones(T, C) ./ C)
+    πposterior = EFD.Dirichlet(T(pstrength) .* ones(T, C) ./ C)
     π = BayesianParameter(πprior, πposterior)
     Mixture{C,eltype(components)}(π, tuple(components...))
 end
+Mixture(;kwargs...) = Mixture(Float64; kwargs...)
 
 function vectorize(m::Mixture{C,M}) where {C,M}
     lnπ = statistics(m.π)
