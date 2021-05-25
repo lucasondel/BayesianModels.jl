@@ -34,7 +34,8 @@ function ∇elbo(model, args...; detailed = false, stats_scale = 1, params)
     grads = Dict()
     for param in params
         ∂𝓛_∂μ = grad(𝓛, param.μ)
-        J = EFD.jacobian(param.posterior.param)
+        #J = EFD.jacobian(param.posterior.param)
+        J = _diagonal(param.posterior.param)
         grads[param] = J * ∂𝓛_∂μ
     end
     value(𝓛), grads
