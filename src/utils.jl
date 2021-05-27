@@ -1,5 +1,15 @@
 # SPDX-License-Identifier: MIT
 
+macro cache(cache_dict::Symbol, expr::Expr)
+    @assert expr.head == :(=) "can only cache assignment expression"
+    sym = QuoteNode(expr.args[1])
+    return quote
+        local retval = $(esc(expr))
+        $(esc(cache_dict))[$sym] = retval
+        retval
+    end
+end
+
 # Primitive to differentiate packed pos. def. matrix
 @primitive EFD.matrix(diagM, trilM),dM diag(dM) EFD.vec_tril(dM) + EFD.vec_tril(dM')
 @primitive EFD.inv_vec_tril(v),dM EFD.vec_tril(dM)
