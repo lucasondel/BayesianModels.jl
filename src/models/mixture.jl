@@ -27,16 +27,12 @@ function Mixture(T ;components, pstrength = 1)
 end
 Mixture(;kwargs...) = Mixture(Float64; kwargs...)
 
-function vectorize(m::Mixture{C,M}) where {C,M}
-    lnπ = statistics(m.π)
-    vcat(hcat(vectorize.(m.components)...), lnπ')
-end
-
-function predict(m::Mixture, X::AbstractMatrix)
-    TH = vectorize(m)
-    TX = statistics(m, X)
-    r = TH' * TX
-    exp.(r .- logsumexp(r, dims = 1))
+function vectorize(m::Mixture{C,M}, cache = Dict()) where {C,M}
+    @cache cache lnπ = statistics(m.π)
+    @cache cache component_caches = [Dict() for i in 1:C]
+    vecs = [vectorize(comp, comp_cache)
+            for (comp, comp_cache) in zip(m.components, component_caches)]
+    vcat(hcat(vecs...), lnπ')
 end
 
 function statistics(m::Mixture, X::AbstractMatrix)
@@ -45,11 +41,30 @@ function statistics(m::Mixture, X::AbstractMatrix)
     vcat(statistics(m.components[1], X), one_const)
 end
 
-function loglikelihood(m::Mixture, X::AbstractMatrix)
+function loglikelihood(m::Mixture, X::AbstractMatrix, cache = Dict())
+    TH = vectorize(m, cache)
+    @cache cache TX = statistics(m, X)
+    r = TH' * TX
+    lnγ = r .- logsumexp(r, dims = 1)
+    @cache cache γ = exp.(lnγ)
+    sum(γ .* r, dims = 1)' .- sum(γ .* lnγ, dims = 1)'
+end
+
+function ∇sum_loglikelihood(m::Mixture, cache)
+    TX = cache[:TX]
+    γ = cache[:γ]
+    acc_Tx = TX*γ'
+    ∂Tπ = sum(eachcol(γ))
+    grads = Dict{Any,Any}(m.π => ∂Tπ)
+    for (comp, Tx, c_cache) in zip(m.components, eachcol(acc_Tx), cache[:component_caches])
+        merge!(grads, ∇sum_loglikelihood(comp, Tx, c_cache))
+    end
+    grads
+end
+
+function predict(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
     TX = statistics(m, X)
     r = TH' * TX
-    lnγ = r .- logsumexp(r, dims = 1)
-    γ = _dropgrad(exp.(lnγ))
-    sum(γ .* r, dims = 1)' .- sum(γ .* lnγ, dims = 1)'
+    exp.(r .- logsumexp(r, dims = 1))
 end

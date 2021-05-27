@@ -87,7 +87,7 @@ function ∇sum_loglikelihood(m::AbstractNormal, Tx::AbstractVector, cache)
     x = view(Tx, 1:D)
     diag_xxᵀ = view(Tx, D+1:2*D)
     tril_xxᵀ = view(Tx, 2*D+1:2*D+O)
-    C = Tx[end]
+    C = CUDA.@allowscalar Tx[end]
 
     ∂Tμ₁ = Λ * x
     ∂Tμ₂ = -vcat(T(.5)*diagΛ, trilΛ)*C

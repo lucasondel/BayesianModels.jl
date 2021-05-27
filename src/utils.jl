@@ -10,21 +10,11 @@ macro cache(cache_dict::Symbol, expr::Expr)
     end
 end
 
-# Primitive to differentiate packed pos. def. matrix
-@primitive EFD.matrix(diagM, trilM),dM diag(dM) EFD.vec_tril(dM) + EFD.vec_tril(dM')
-@primitive EFD.inv_vec_tril(v),dM EFD.vec_tril(dM)
-@primitive EFD.vec_tril(M),dv EFD.inv_vec_tril(dv)
 
-function logsumexp(x;dims=:)
-    xmax = maximum(x,dims=dims)
-    xmax + log.(sum(exp.(x .- xmax),dims=dims))
+function logsumexp(x; dims=:)
+    xmax = maximum(x, dims=dims)
+    xmax + log.(sum(exp.(x .- xmax), dims=dims))
 end
-@primitive logsumexp(x;dims=:),dy,y  (dy .* exp.(x .- y))
-
-function _dropgrad(r)
-    r
-end
-@zerograd _dropgrad(r)
 
 function init_gpu()
     device_reset!()
