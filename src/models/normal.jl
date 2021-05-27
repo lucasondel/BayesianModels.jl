@@ -96,9 +96,10 @@ function ∇sum_loglikelihood(m::AbstractNormal, Tx::AbstractVector, cache)
     xμᵀ = x * μ'
     diag_xμᵀ = diag(xμᵀ)
     tril_xμᵀ = EFD.vec_tril(xμᵀ)
+    tril_μxᵀ = EFD.vec_tril(μ * x')
 
-    ∂diagΛ = -T(.5)*(diag_xxᵀ - diag_xμᵀ + diag_μμᵀ)
-    ∂trilΛ = -(tril_xxᵀ - tril_xμᵀ + tril_μμᵀ)
+    ∂diagΛ = -T(.5)*diag_xxᵀ + diag_xμᵀ - T(.5)*C*diag_μμᵀ
+    ∂trilΛ = -tril_xxᵀ + (tril_μxᵀ + tril_xμᵀ) - C*tril_μμᵀ
     ∂lnΛ = T(.5)*C
     ∂TΛ = vcat(∂diagΛ, ∂trilΛ, ∂lnΛ)
 
@@ -172,7 +173,7 @@ function ∇sum_loglikelihood(m::NormalDiagIndependentParams, Tx::AbstractVector
     ∂Tμ = vcat(∂Tμ₁, ∂Tμ₂)
 
     diag_xμᵀ = x .* μ
-    ∂diagΛ = -T(.5)*(diag_xxᵀ - diag_xμᵀ + diag_μμᵀ)
+    ∂diagΛ = -T(.5)*(diag_xxᵀ - diag_xμᵀ + C*diag_μμᵀ)
     ∂lnλ = similar(λ)
     fill!(∂lnλ, T(.5*C))
     ∂Tλ= vcat(∂diagΛ, ∂lnλ)
