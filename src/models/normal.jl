@@ -165,7 +165,7 @@ function ∇sum_loglikelihood(m::NormalDiagIndependentParams, Tx::AbstractVector
     T = eltype(μ)
     x = view(Tx, 1:D)
     diag_xxᵀ = view(Tx, D+1:2*D)
-    C = Tx[end]
+    C = @CUDA.allowscalar Tx[end]
 
     ∂Tμ₁ = λ .* x
     ∂Tμ₂ = -T(.5)*C*λ
