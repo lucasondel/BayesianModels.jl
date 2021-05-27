@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-
 """
     elbo(model, X[, detailed = false, stats_scale = 1, params = params])
 
@@ -11,8 +10,8 @@ for those parameters.
 """
 elbo
 
-function elbo(model, args...; detailed = false, stats_scale = 1)
-    llh = loglikelihood(model, args...)
+function elbo(model, args...; cache = Dict(), detailed = false, stats_scale = 1)
+    llh = loglikelihood(model, args..., cache)
     T = eltype(llh)
     sllh = sum(llh)*T(stats_scale)
 
@@ -28,39 +27,20 @@ function _diagonal(param)
     Diagonal(d)
 end
 
-function ∇elbo(model, args...; detailed = false, stats_scale = 1, params)
-    𝓛 = CUDA.@allowscalar @diff elbo(model, args...; detailed, stats_scale)
-
+function ∇elbo(model, cache, params)
+    grads_Tμ = ∇sum_loglikelihood(model, cache)
     grads = Dict()
     for param in params
-        ∂𝓛_∂μ = grad(𝓛, param.μ)
+        ηq = EFD.naturalform(param.posterior.param)
+        ηp = EFD.naturalform(param.prior.param)
+        ∂KL_∂Tμ = (ηq - ηp)
+        ∂𝓛_∂Tμ = grads_Tμ[param] - ∂KL_∂Tμ
         #J = EFD.jacobian(param.posterior.param)
         J = _diagonal(param.posterior.param)
-        grads[param] = J * ∂𝓛_∂μ
+        grads[param] = J * ∂𝓛_∂Tμ
     end
-    value(𝓛), grads
+    grads
 end
-
-"""
-    ∇elbo(model, args...[, stats_scale = 1])
-
-Compute the natural gradient of the elbo w.r.t. to the posteriors'
-parameters.
-"""
-#function ∇elbo(model, args...; params, stats_scale = 1)
-#    P = Params([param.μ for param in params])
-#    #𝓛, back = Zygote.pullback(() -> elbo(model, args..., stats_scale = stats_scale), P)
-#
-#    μgrads = back(1)
-#
-#    grads = Dict()
-#    for param in params
-#        ∂𝓛_∂μ = μgrads[param.μ]
-#        J = EFD.jacobian(param.posterior.param)
-#        grads[param] = J * ∂𝓛_∂μ
-#    end
-#    𝓛, grads
-#end
 
 """
     gradstep(param_grad; lrate)
@@ -74,4 +54,3 @@ function gradstep(param_grad; lrate::Real)
         param.μ.value = EFD.gradlognorm(param.posterior)
     end
 end
-
