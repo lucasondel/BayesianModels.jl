@@ -14,6 +14,7 @@ function elbo(model, args...; cache = Dict(), detailed = false, stats_scale = 1)
     llh = loglikelihood(model, args..., cache)
     T = eltype(llh)
     sllh = sum(llh)*T(stats_scale)
+    cache[:stats_scale] = stats_scale
 
     params = filter(isbayesianparam, getparams(model))
     KL = sum([EFD.kldiv(param.posterior, param.prior, μ = param.μ)
@@ -34,7 +35,7 @@ function ∇elbo(model, cache, params)
         ηq = EFD.naturalform(param.posterior.param)
         ηp = EFD.naturalform(param.prior.param)
         ∂KL_∂Tμ = (ηq - ηp)
-        ∂𝓛_∂Tμ = grads_Tμ[param] - ∂KL_∂Tμ
+        ∂𝓛_∂Tμ = grads_Tμ[param] * cache[:stats_scale] - ∂KL_∂Tμ
         #J = EFD.jacobian(param.posterior.param)
         J = _diagonal(param.posterior.param)
         grads[param] = J * ∂𝓛_∂Tμ
@@ -51,6 +52,6 @@ function gradstep(param_grad; lrate::Real)
     for (param, ∇𝓛) in param_grad
         ξ = param.posterior.param.ξ
         ξ[:] = ξ + lrate*∇𝓛
-        param.μ.value = EFD.gradlognorm(param.posterior)
+        param.μ[:] = EFD.gradlognorm(param.posterior)
     end
 end

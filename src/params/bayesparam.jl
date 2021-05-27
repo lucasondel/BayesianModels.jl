@@ -26,7 +26,7 @@ end
 
 function BayesianParameter(prior, posterior)
     μ = EFD.gradlognorm(posterior)
-    BayesianParameter(prior, posterior, Param(μ))
+    BayesianParameter(prior, posterior, μ)
 end
 
 statistics(p::BayesianParameter) = EFD.splitgrad(p.posterior, p.μ)

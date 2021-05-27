@@ -2,12 +2,10 @@
 
 module BayesianModels
 
-using AutoGrad
 using CUDA
 import ExpFamilyDistributions
 const EFD = ExpFamilyDistributions
 using LinearAlgebra
-import StatsFuns
 
 include("bmobj.jl")
 
