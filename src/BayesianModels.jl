@@ -9,7 +9,7 @@ using LinearAlgebra
 
 include("bmobj.jl")
 
-export getparams, isbayesianparam
+export getparams, isbayesianparam, todict, fromdict
 include("params/params.jl")
 include("params/bayesparam.jl")
 include("params/constparam.jl")

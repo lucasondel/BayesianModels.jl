@@ -10,7 +10,6 @@ macro cache(cache_dict::Symbol, expr::Expr)
     end
 end
 
-
 function logsumexp(x; dims=:)
     xmax = maximum(x, dims=dims)
     xmax + log.(sum(exp.(x .- xmax), dims=dims))

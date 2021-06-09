@@ -37,3 +37,20 @@ statistics(p::BayesianParameter) = EFD.splitgrad(p.posterior, p.μ)
 Returns true if `p` is a `BayesianParam`.
 """
 isbayesianparam(p) = typeof(p) <: BayesianParameter
+
+function todict(p::BayesianParameter{DT1,DT2,T}) where {DT1,DT2,T}
+    Dict(
+        :prior_param => EFD.todict(p.prior.param),
+        :prior_param_type => typeof(p.prior.param),
+        :posterior_param => EFD.todict(p.posterior.param),
+        :posterior_param_type => typeof(p.posterior.param)
+    )
+end
+
+function fromdict(::Type{BayesianParameter{DT1,DT2,T}}, d::AbstractDict) where {DT1,DT2,T}
+    prior_param = EFD.fromdict(d[:prior_param_type], d[:prior_param])
+    post_param = EFD.fromdict(d[:posterior_param_type], d[:posterior_param])
+    prior = DT1(prior_param)
+    post = DT2(post_param)
+    BayesianParameter(prior, post)
+end

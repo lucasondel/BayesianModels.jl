@@ -24,6 +24,24 @@ The list is immutable.
 const ParameterList{N,T<:AbstractParameter} = NTuple{N,T}
 ParameterList(m...) = tuple(m...)
 
+function todict(t::ParameterList)
+    d = Dict()
+    d[:eltype] = eltype(t)
+    d[:length] = length(t)
+    for (i,el) in enumerate(t)
+        d[Symbol("el_$(i)")] = todict(el)
+    end
+    d
+end
+
+function fromdict(T::Type{<:ParameterList}, d::AbstractDict)
+    a = []
+    for i in 1:d[:length]
+        push!(a, fromdict(d[:eltype], d[Symbol("el_$(i)")]))
+    end
+    tuple(a...)
+end
+
 """
     getparams(obj)
 
