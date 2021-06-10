@@ -23,11 +23,19 @@ loglikelihood
 
 
 """
+    posterior(model::AbstractLatentVariableModel, X)
+
+Return the posterior over the latent variables of `model`.
+"""
+posterior
+
+"""
     predict(model::AbstractLatentVariableModel, X)
 
-Return the posterior over the latent variable of `model`.
+Return the most likely latent variables of `model` given `X`.
 """
 predict
+
 
 """
     todict(model)
@@ -69,22 +77,3 @@ models in the list and `T` is the type of the models. The list is
 immutable.
 """
 const ModelList{N,T<:AbstractModel} = NTuple{N,T}
-
-function todict(t::ModelList)
-    d = Dict()
-    d[:eltype] = eltype(t)
-    d[:length] = length(t)
-    for (i,el) in enumerate(t)
-        d[Symbol("el_$(i)")] = todict(el)
-    end
-    d
-end
-
-function fromdict(T::Type{<:ModelList}, d::AbstractDict)
-    a = []
-    for i in 1:d[:length]
-        push!(a, fromdict(d[:eltype], d[Symbol("el_$(i)")]))
-    end
-    tuple(a...)
-end
-

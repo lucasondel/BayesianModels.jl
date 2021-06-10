@@ -17,7 +17,7 @@ include("params/constparam.jl")
 export gpu!, cpu!, init_gpu
 include("utils.jl")
 
-export loglikelihood, predict
+export loglikelihood, posterior, predict
 include("models/models.jl")
 
 export Mixture, Normal, NormalDiag

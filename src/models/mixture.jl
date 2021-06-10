@@ -62,9 +62,17 @@ function ∇sum_loglikelihood(m::Mixture, cache)
     grads
 end
 
-function predict(m::Mixture, X::AbstractMatrix)
+function posterior(m::Mixture, X::AbstractMatrix)
     TH = vectorize(m)
     TX = statistics(m, X)
     r = TH' * TX
     exp.(r .- logsumexp(r, dims = 1))
+end
+
+function predict(m::Mixture, X::AbstractMatrix)
+    TH = vectorize(m)
+    TX = statistics(m, X)
+    r = TH' * TX
+    _, maxinds = findmax(r, dims = 1)
+    dropdims(getindex.(maxinds, 1), dims = 1)
 end

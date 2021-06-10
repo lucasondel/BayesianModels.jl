@@ -58,3 +58,21 @@ end
 
 gpu!(obj) = _reallocate!(obj, CuArray, Set())
 cpu!(obj) = _reallocate!(obj, Array, Set())
+
+function todict(t::NTuple{N,T}) where {N,T}
+    d = Dict()
+    d[:eltype] = T
+    d[:length] = N
+    for (i,el) in enumerate(t)
+        d[Symbol("el_$(i)")] = todict(el)
+    end
+    d
+end
+
+function fromdict(T::Type{<:NTuple}, d::AbstractDict)
+    a = []
+    for i in 1:d[:length]
+        push!(a, fromdict(d[:eltype], d[Symbol("el_$(i)")]))
+    end
+    tuple(a...)
+end
