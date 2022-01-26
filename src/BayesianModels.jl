@@ -2,30 +2,31 @@
 
 module BayesianModels
 
-using CUDA
-import ExpFamilyDistributions
-const EFD = ExpFamilyDistributions
+import Distributions
+import ForwardDiff
 using LinearAlgebra
+using SpecialFunctions
+using Zygote
 
-include("bmobj.jl")
+include("distributions/expfamily.jl")
 
-export getparams, isbayesianparam, todict, fromdict
-include("params/params.jl")
-include("params/bayesparam.jl")
-include("params/constparam.jl")
+export μ, η, ξ, A, kldiv, sample, unpack
 
-export gpu!, cpu!, init_gpu
-include("utils.jl")
+include("distributions/normal.jl")
+include("distributions/gamma.jl")
+include("distributions/wishart.jl")
+include("distributions/normalwishart.jl")
 
-export loglikelihood, posterior, predict
-include("models/models.jl")
+export Normal, Gamma, Wishart, NormalWishart
 
-export Mixture, Normal, NormalDiag
-include("models/mixture.jl")
+include("models/model.jl")
+
+export loglikelihood
+export elbo
+export getstats
+
 include("models/normal.jl")
 
-
-export elbo, ∇elbo, gradstep
-include("elbo.jl")
+export NormalModel
 
 end # module
