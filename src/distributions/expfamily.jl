@@ -22,7 +22,7 @@ abstract type ExponentialFamilyDistribution end
 
 function kldiv(p₁::ExponentialFamilyDistribution,
                p₂::ExponentialFamilyDistribution,
-               μ₁::AbstractArray = μ(p₁))
+               μ₁::AbstractVector = μ(p₁))
 	η₁, η₂ = η(p₁), η(p₂)
     A(p₂, η₂) - A(p₁, η₁) - dot(η₂ - η₁, μ₁)
 end

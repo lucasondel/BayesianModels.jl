@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 
-struct NormalWishart{T1<:AbstractVector,T2<:Real,
-					 T3<:AbstractMatrix,T4<:Real} <: ExponentialFamilyDistribution
+struct NormalWishart{T1<:AbstractVector{<:AbstractFloat},T2<:AbstractFloat,
+                     T3<:AbstractMatrix{<:AbstractFloat},T4<:AbstractFloat} <: ExponentialFamilyDistribution
 	μ::T1
 	β::T2
 	W::T3
@@ -10,7 +10,7 @@ end
 
 function η(p::NormalWishart)
 	D = length(p.μ)
-	μ, β, W, ν = p.μ, p.β, p.W, p.ν
+    μ, β, W, ν = p.μ, p.β, p.W, p.ν
 
 	M =
 	η₁ = β * μ
@@ -33,9 +33,8 @@ function unpack(p::NormalWishart, μ)
 	D = length(p.μ)
 	Yx = μ[1:D]
 	xᵀYx = μ[D+1]
-	Y = reshape(μ[D+2:end-1], D, D)
+    Y = reshape(μ[D+2:end-1], D, D)
 	logdetY = μ[end]
-	#(Yx=Yx, xᵀYx=xᵀYx, Y=Y, logdetY=logdetY)
 	(Yx, xᵀYx, Y, logdetY)
 end
 
@@ -46,7 +45,7 @@ function A(p::NormalWishart, η)
     β = -2*η[D+1]
 	μ = (1/β)*η[1:D]
 	ν = 2*η[end] + D
-	W⁻¹ = reshape(-2*η[D+2:end-1], D, D) - β*μ*μ'
+    W⁻¹ = reshape(-2*η[D+2:end-1], D, D) - β*μ*μ'
 
 	(
 		- (D/2)*log(β)

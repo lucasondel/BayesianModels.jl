@@ -1,22 +1,53 @@
 # SPDX-License-Identifier: MIT
 
-struct GSM{ModelType} <: AbstractModel
-    transform::AffineTransform
+struct GSM{T1,T2,T3} <: AbstractModel
     f::Function
-    vec2params::Function
+    pW::T1
+    pb::T2
+    models::T3
 end
 
-function newmodel(gsm::GSM{ModelType}, embeddings) where ModelType
-    E = [statistics(e) for e in embeddings]
-    H = gsm.f.(E |> gsm.transform)
-    [ModelType(gsm.vec2params(η)...) for η in H]
+function kldiv(gsm::GSM, qθ, Tθ)
+    qW, qb, qH = qθ
+    μW, μb, μH = Tθ
+    kldiv(qW, gsm.pW, μW) + kldiv(qb, gsm.pb, μb) + sum(kldiv.(gsm.models, qH, μH))
 end
 
-#######################################################################
-# Model interface
+function reparamtrick(μx)
+    x̄, x̄² = μx
+    T = eltype(x̄)
+    mm = x̄ .^ 2
+    x̄ #+ sqrt.(x̄² .- mm) .* randn(T, size(x̄)...)
+end
 
-function loglikelihood(gsm::GSM, embeddings, Xs)
-    models = newmodel(gsm, embeddings)
-    [sum(loglikelihood(models[k], Xs[k])) for k in 1:length(models)]
+function getstats(gsm::GSM, qθ)
+    qW, qb, qH = qθ
+    μ(qW), μ(qb), μ.(qH)
+end
+
+function unpack(gsm::GSM, qθ, Tθ)
+    qW, qb, qH = qθ
+    μW, μb, μH = Tθ
+    T = eltype(μW)
+
+    W = reparamtrick(unpack(qW, μW))
+    b = reparamtrick(unpack(qb, μb))
+    H = hcat(reparamtrick.(unpack.(qH, μH))...)
+    #Ĥ = vcat(H, ones(T, 1, size(H, 2)))
+
+    gsm.f.(eachcol(W' * H .+ b))
+end
+
+loglikelihood(gsm::GSM, Xs, uTθ) = sum(loglikelihood.(gsm.models, Xs, uTθ))
+
+function newposterior(gsm::GSM, qθ::Tuple, ∇μ; lrate=1)
+    q₀W, q₀b, q₀H = qθ
+    ∇μW, ∇μb, ∇μH = ∇μ
+
+    qW = newposterior(gsm, q₀W, ∇μW; lrate)
+    qb = newposterior(gsm, q₀b, ∇μb; lrate)
+    qH = newposterior.(gsm.models, q₀H, ∇μH; lrate)
+
+    qW, qb, qH
 end
 

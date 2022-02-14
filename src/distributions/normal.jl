@@ -15,7 +15,7 @@ end
 function ξ(p::AbstractNormal, η)
 	D = length(p.μ)
 	Λ = -2*reshape(η[D+1:end], D, D)
-	μ = Σ*η[1:D]
+    μ = inv(Λ)*η[1:D]
 	vcat(μ, vec(Λ))
 end
 
@@ -40,23 +40,79 @@ function sample(p::AbstractNormal)
     p.μ + cholesky(inv(p.Λ)).L*randn(D)
 end
 
-#######################################################################
-# Alternative parameterization.
-
-struct NormalCholesky{T1<:AbstractVector,T2<:AbstractMatrix} <: AbstractNormal
+struct NormalDiag{T1<:AbstractVector,T2<:AbstractVector} <: AbstractNormal
     μ::T1
-	L::T2
-
-    function NormalCholesky(μ, Λ)
-        L = cholesky(Λ).L
-        new{typeof(μ), typeof(L)}(μ, L)
-    end
+	lnλ::T2
 end
 
-function Base.getproperty(val::NormalCholesky, name::Symbol)
-    if name === :Λ
-        return val.L*val.L'
-    else
-        return getfield(val, name)
-    end
+function η(p::NormalDiag)
+    λ = exp.(p.lnλ)
+	vcat(λ .* p.μ, -(1/2)*λ)
 end
+
+function ξ(p::NormalDiag, η)
+	D = length(p.μ)
+	λ = -2* η[D+1:end]
+    μ = (1 ./ λ) .* η[1:D]
+    vcat(μ, log.(λ))
+end
+
+function unpack(p::NormalDiag, μ)
+	D = length(p.μ)
+	x² = μ[D+1:end]
+	x = μ[1:D]
+    (x=x, x²=x²)
+end
+
+function A(p::NormalDiag, η)
+	D = length(p.μ)
+
+	λ = -2 * η[D+1:end]
+	μ = (1 ./ λ) .* η[1:D]
+
+    -(1/2) * sum(log.(λ)) + (1/2) * sum(μ .* λ .* μ)
+end
+
+function sample(p::NormalDiag)
+	D = length(p.μ)
+    p.μ + sqrt.(1 ./ exp.(p.λ)) .* randn(D)
+end
+
+struct NormalIso{T1<:AbstractVector,T2<:Real} <: AbstractNormal
+    μ::T1
+	lnλ::T2
+end
+
+function η(p::NormalIso)
+    λ = exp.(p.lnλ)
+	vcat(λ .* p.μ, -(1/2)*λ)
+end
+
+function ξ(p::NormalIso, η)
+	D = length(p.μ)
+	λ = -2* η[D+1]
+    μ = (1 / λ) .* η[1:D]
+    vcat(μ, log(λ))
+end
+
+function unpack(p::NormalIso, μ)
+	D = length(p.μ)
+	x² = μ[D+1]
+	x = μ[1:D]
+    (x=x, x²=x²)
+end
+
+function A(p::NormalIso, η)
+	D = length(p.μ)
+
+	λ = -2 * η[D+1]
+	μ = (1 / λ) .* η[1:D]
+
+    -(D/2) * log(λ) + (1/2) * sum(μ .* λ .* μ)
+end
+
+function sample(p::NormalIso)
+	D = length(p.μ)
+    p.μ + sqrt.(1 / exp.(p.lnλ)) .* randn(D)
+end
+
