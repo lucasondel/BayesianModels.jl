@@ -2,48 +2,81 @@
 
 abstract type AbstractNormal <: ExponentialFamilyDistribution end
 
-struct Normal{T1<:AbstractVector,T2<:AbstractMatrix} <: AbstractNormal
+struct Normal{T1<:AbstractVector,T2<:AbstractVector,T3<:AbstractVector} <: AbstractNormal
     μ::T1
-	Λ::T2
+    lnλ::T2 # Logarithm of the diagonal of the L matrix.
+    vechL::T3 # Half-vectorization of the L matrix
 end
 
+function Normal(μ::AbstractVector, Λ::AbstractMatrix)
+    L = cholesky(Λ).L
+    lnλ = log.(diag(L))
+    vechL = vech(L, 1)
+    Normal(μ, lnλ, vechL)
+end
+
+Normal(μ::AbstractVector) =
+    Normal(μ, copyto!(similar(μ, size(μ, 1), size(μ, 1)), I))
+
+Normal(D::Int) = Normal(zeros(D), Matrix(I, D, D))
+
 function η(p::AbstractNormal)
-	Λ = Symmetric(p.Λ)
-	vcat(Λ*p.μ, -(1/2)*vec(Λ))
+    D = length(p.μ)
+    L = diagm(exp.(p.lnλ)) .+ CompressedLowerTriangular(D, 1, p.vechL)
+    Λ = L * L'
+    vcat(Λ*p.μ, -(1/2)*diag(Λ), -(1/2)*vech(Λ, 1))
 end
 
 function ξ(p::AbstractNormal, η)
 	D = length(p.μ)
-	Λ = -2*reshape(η[D+1:end], D, D)
-    μ = inv(Λ)*η[1:D]
-	vcat(μ, vec(Λ))
+    diagΛ = -2 * diagm(η[D+1:2*D])
+    shΛ = -2 * CompressedSymmetric(D, 1, η[2*D+1:end])
+    Λ = diagΛ + shΛ
+    L = cholesky(Λ).L
+    L⁻¹ = inv(L)
+    μ = L⁻¹' * L⁻¹ * η[1:D]
+    vcat(μ, log.(diag(L)), vech(L, 1))
 end
 
 function unpack(p::AbstractNormal, μ)
 	D = length(p.μ)
-	xxᵀ = reshape(μ[D+1:end], D, D)
 	x = μ[1:D]
-	(x=x, xxᵀ=xxᵀ)
+    diagxxᵀ = μ[D+1:2*D]
+    vechxxᵀ = μ[2*D+1:end]
+    #xxᵀ = diagm(diagxxᵀ) + CompressedSymmetric(size(x, 1), 1, vechxxᵀ)
+	(x=x, diagxxᵀ=diagxxᵀ, vechxxᵀ=vechxxᵀ)
 end
 
 function A(p::AbstractNormal, η)
 	D = length(p.μ)
 
-	Λ = -2*reshape(η[D+1:end], D, D)
-	μ = inv(Λ)*η[1:D]
+    diagΛ = -2 * diagm(η[D+1:2*D])
+    shΛ = -2 * CompressedSymmetric(D, 1, η[2*D+1:end])
+    Λ = diagΛ + shΛ
+    L = cholesky(Symmetric(Λ)).L
+    L⁻¹ = inv(L)
+    μ = L⁻¹' * L⁻¹ * η[1:D]
 
-	-(1/2) * logdet(Λ) + (1/2)*μ'*Λ*μ
+    #-(1/2)*logdet(Symmetric(Λ)) + (1/2)* μ' * η[1:D]
+    -sum(log.(diag(L))) + (1/2)* μ' * η[1:D]
 end
 
 function sample(p::AbstractNormal)
 	D = length(p.μ)
-    p.μ + cholesky(inv(p.Λ)).L*randn(D)
+    L = diagm(exp.(p.lnλ)) .+ CompressedLowerTriangular(D, 1, p.vechL)
+    Λ = Symmetric(L * L')
+    p.μ + cholesky(inv(Λ)).L*randn(D)
 end
 
 struct NormalDiag{T1<:AbstractVector,T2<:AbstractVector} <: AbstractNormal
     μ::T1
 	lnλ::T2
 end
+
+NormalDiag(μ::AbstractVector) =
+    NormalDiag(μ, fill!(similar(μ, size(μ, 1), zero(eltype(μ)))))
+
+NormalDiag(D::Int) = NormalDiag(zeros(D), zeros(D))
 
 function η(p::NormalDiag)
     λ = exp.(p.lnλ)

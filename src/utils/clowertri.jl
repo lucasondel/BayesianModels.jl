@@ -15,32 +15,35 @@ function vech(A::AbstractMatrix, k=0)
     out
 end
 
-struct CompressedTriangularMatrix{T,S<:AbstractVector{T}} <: AbstractMatrix{T}
+struct CompressedLowerTriangular{T,S<:AbstractVector{T}} <: AbstractMatrix{T}
     D::Int64
     k::Int64
     vech::S
 end
 
-function CompressedTriangularMatrix(M::AbstractMatrix, k = 0)
+function CompressedLowerTriangular(M::AbstractMatrix, k = 0)
     T = eltype(M)
     v = vech(M, k)
-    CompressedTriangularMatrix{T, typeof(v)}(size(M, 1), k, v)
+    CompressedLowerTriangular{T, typeof(v)}(size(M, 1), k, v)
 end
 
-@Zygote.adjoint CompressedTriangularMatrix(D, k, v) =
-    CompressedTriangularMatrix(D, k, v), c -> (0, 0, vech(c, k))
+@Zygote.adjoint CompressedLowerTriangular(D, k, v) =
+    CompressedLowerTriangular(D, k, v), c -> (0, 0, vech(c, k))
 
-Base.size(M::CompressedTriangularMatrix) = (M.D, M.D)
+@Zygote.adjoint vech(M, k) =
+    vech(M, k), c -> (CompressedLowerTriangular(size(M, 1), k, c), 0)
 
-function Base.getindex(M::CompressedTriangularMatrix, r::Int, c::Int)
+Base.size(M::CompressedLowerTriangular) = (M.D, M.D)
+
+function Base.getindex(M::CompressedLowerTriangular, r::Int, c::Int)
     (r > M.k && c <= (M.D - M.k) && c <= (r - M.k)) || return zero(eltype(M))
     s = ((c-1) * c) ÷ 2
     i = (c-1) * (M.D - M.k) + (r - M.k) - s
     M.vech[i]
 end
 
-function Base.replace_in_print_matrix(M::CompressedTriangularMatrix, r::Integer, c::Integer,
-        s::AbstractString)
+function Base.replace_in_print_matrix(M::CompressedLowerTriangular, r::Integer,
+                                      c::Integer, s::AbstractString)
     if (r > M.k && c <= (M.D - M.k) && c <= (r - M.k))
         return s
     else
@@ -48,3 +51,37 @@ function Base.replace_in_print_matrix(M::CompressedTriangularMatrix, r::Integer,
     end
 end
 
+struct CompressedSymmetric{T,S<:AbstractVector{T}} <: AbstractMatrix{T}
+    D::Int64
+    k::Int64
+    vech::S
+end
+
+function CompressedSymmetric(M::AbstractMatrix, k = 0)
+    T = eltype(M)
+    v = vech(M, k)
+    CompressedSymmetric{T, typeof(v)}(size(M, 1), k, v)
+end
+
+@Zygote.adjoint CompressedSymmetric(D, k, v) =
+    CompressedSymmetric(D, k, v), c -> (0, 0, (1/2)*vech(Symmetric(c), k))
+
+Base.size(M::CompressedSymmetric) = (M.D, M.D)
+
+function Base.getindex(M::CompressedSymmetric, r::Int, c::Int)
+    r, c = max(r, c), min(r, c)
+    (r > M.k && c <= (M.D - M.k) && c <= (r - M.k)) || return zero(eltype(M))
+    s = ((c-1) * c) ÷ 2
+    i = (c-1) * (M.D - M.k) + (r - M.k) - s
+    M.vech[i]
+end
+
+function Base.replace_in_print_matrix(M::CompressedSymmetric, r::Integer,
+                                      c::Integer, s::AbstractString)
+    r, c = max(r, c), min(r, c)
+    if (r > M.k && c <= (M.D - M.k) && c <= (r - M.k))
+        return s
+    else
+        Base.replace_with_centered_mark(s)
+    end
+end

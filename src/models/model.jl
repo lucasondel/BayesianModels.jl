@@ -55,16 +55,17 @@ unpack(model::AbstractModel, qθ::ExponentialFamilyDistribution,
        Tθ::AbstractVector) = unpack(qθ, Tθ)
 
 """
-    newposterior(model, qθ, ∇μ; lrate=1)
+    newposterior(model, qθ, ∇μ; lrate=1, clip=true)
 
 Create a new posterior whose parameter are estimated by a natural gradient
 step with learning rate `lrate`.
 """
-function newposterior(::AbstractModel, qθ::ExponentialFamilyDistribution, ∇μ; lrate=1)
+function newposterior(::AbstractModel, qθ::ExponentialFamilyDistribution, ∇μ;
+                      lrate=1, clip=true)
+    c∇μ = clip ? ∇μ ./ norm(∇μ) : ∇μ
     ηq = η(qθ)
-    ∇̃ξ = ForwardDiff.derivative(t -> ξ(qθ, ηq + t*∇μ), 0)
+    ∇̃ξ = ForwardDiff.derivative(t -> ξ(qθ, ηq + t * c∇μ), 0)
     ξᵗ⁺¹ = ξ(qθ, ηq) + lrate*∇̃ξ
-    #ξᵗ⁺¹ = ξ(qθ, ηq + lrate*∇μ)
     typeof(qθ)(unpack(qθ, ξᵗ⁺¹)...)
 end
 

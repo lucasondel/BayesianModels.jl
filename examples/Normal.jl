@@ -14,6 +14,7 @@ begin
 	using DataFrames
 	using DelimitedFiles
 	using Downloads
+	using ForwardDiff
 	using LinearAlgebra
 	using Plots
 	using Zygote
@@ -64,6 +65,20 @@ begin
 	)
 end
 
+# ╔═╡ e2aa337d-4cdc-43d2-a8f6-5d0a607a3de0
+arpa2ipa = Dict(
+	"IY" => "i",
+	"IH" => "I",
+	"EH" => "ε", 
+	"AE" => "æ",
+	"AH" => "Λ",
+	"AA" => "ɑ",
+	"AO" => "ɔ",
+	"UH" => "ʊ",
+	"UW" => "u",
+	"ER" => "ɝ"
+)
+
 # ╔═╡ 570dc7f7-10dc-46ed-9958-2acc0ed76ad1
 phones = Set(data[:, :phone_ascii])
 
@@ -71,24 +86,30 @@ phones = Set(data[:, :phone_ascii])
 begin
 	local p = plot()
 	for phone in phones
-		X = subset(data, :phone_ascii => p -> p .== phone)[:, [:f1, :f2]]
-		scatter!(
-			X[:, 1], X[:, 2], 
-			label=phone
-		)
+		X = subset(data,  :phone_ascii => p -> p .== phone)
+		X = subset(X, :type => t -> t .== 1)
+		X = X[:, [:f1, :f2]]
+		scatter!(X[:, 1], X[:, 2], label=phone)
 	end
 	p
 end
 
 # ╔═╡ 15c82689-be5d-411b-9594-1ba031fb2a0d
-Xs = [Array{Float64}(subset(data, :phone_ascii => p -> p .== phone)[:, [:f0, :f1, :f2, :f3]])'
-	  for phone in phones]
+Xs = [
+	Array{Float64}(
+		subset(
+			data, 
+			:type => t -> t .== 1, 
+			:phone_ascii => p -> p .== phone
+		)[:, [:f0, :f1, :f2, :f3]])'
+	for phone in phones
+]
 
 # ╔═╡ 6c8c5ecc-9dc2-446a-8726-699694677c42
 md"""
 ## Basic Model
 
-We start by learning a basic model: a set of independant Normal distribution each with a Normal-Wishart prior. This basic model will then be used to initialize the GSM.
+We start by learning a basic model: a set of independent Normal distributions each with a Normal-Wishart prior. 
 """
 
 # ╔═╡ 2d01cdec-0da2-48f7-9ae9-7cf2298e9d11
@@ -107,10 +128,10 @@ begin
 	local N = sum(size.(Xs, 2))
 	L = []
 	
-	for t in 1:1000
+	for t in 1:2000
 		μs = getstats.(models, qθs)
 		(l, (∇μs,)) = withgradient(μs -> sum(elbo.(models, Xs, qθs, μs))/N, μs)
-		qθs = BayesianModels.newposterior.(models, qθs, ∇μs; lrate=1)
+		qθs = newposterior.(models, qθs, ∇μs; lrate=0.1)
 	
 		push!(L, l)
 	end
@@ -160,7 +181,7 @@ function f(ψ::AbstractVector)
 	
 	Λμ = ψ[1:D]
 	A = diagm(exp.(1e-3 .+ ψ[D+1:2*D]))
-	L = A #+ CompressedTriangularMatrix(D, 1, ψ[2*D+1:end])
+	L = A + CompressedLowerTriangular(D, 1, ψ[2*D+1:end])
 	L⁻¹ = inv(L)
 	
 	Λ = L * L'
@@ -176,28 +197,19 @@ function f⁻¹((Λμ, μᵀΛμ, Λ, logdetΛ))
 	vcat(Λμ, log.(diag(C.L)), vech(C.L, 1))
 end
 
-# ╔═╡ 1717eead-5f0a-45cb-bc73-85414e9f06e8
-Λμ, μᵀΛμ, Λ, logdetΛ = f(f⁻¹(unpack(qθs[1], μ(qθs[1]))))
+# ╔═╡ 93109c2d-a784-408a-9466-c1d43dc8cd48
+function f⁻¹(η::AbstractVector)
+	L = length(η)
+	D = Int((-(3/2) + sqrt((9/4) + 2L)))
 
-# ╔═╡ d159e0b9-7118-4155-ba20-a8bc73465fc8
-Λ
-
-# ╔═╡ 07f8c201-682a-4e82-a210-0b8c8050d7bc
-logdet(Λ)
-
-# ╔═╡ 9163576a-5aff-49a2-8c52-f240c0c338e3
-M= inv(Λ)
-
-# ╔═╡ 93de5fe9-6fe8-49d2-b9be-462f90148dd9
-(M* Λμ)' * Λμ
-
-# ╔═╡ a0cc6a05-6d8a-4b3f-9886-aa6139382a0c
-md"""
- $Q$ is dimension of the subspace 
-"""
-
-# ╔═╡ c2f69d52-7533-4bea-9457-f8ba4f324ee8
-Q = 2
+	Λμ = η[1:D]
+	diagΛ = η[D+1:2*D]
+	vechΛ = η[2*D+1:end]
+	Λ = diagm(diagΛ) + CompressedSymmetric(D, 1, vechΛ)
+	
+	C = cholesky(Λ)
+	vcat(Λμ, log.(diag(C.L)), vech(C.L, 1))
+end
 
 # ╔═╡ 3d4c8ff8-1621-4710-a49e-7ccda892cd7c
 md"""
@@ -207,150 +219,55 @@ md"""
 # ╔═╡ 4a09cd83-a32c-486d-afa0-af460a20d784
 P = 2D + (D^2 - D) ÷ 2
 
-# ╔═╡ 0ae825a4-f21e-4ed9-a08c-2d781d2c9576
-pW = JointNormal(zeros(Q, P), zeros(Q, P))
-
-# ╔═╡ 595b1c89-f134-4a73-8193-f5f5b6e5d83d
-pb = NormalDiag(zeros(P), zeros(P))
-
-# ╔═╡ 0fd9bb0e-a8b0-4b55-9af8-8b3356fc53a5
-ph = NormalDiag(zeros(Q), zeros(Q))
-
-# ╔═╡ 37067855-9706-404e-ac02-8e15dc9a84d5
-gsm = GSM(f, pW, pb, [NormalModel(ph) for p in collect(phones)[1:3]])
-
-# ╔═╡ ca225bbf-b945-4366-a9cd-2b6436a78b26
+# ╔═╡ a0cc6a05-6d8a-4b3f-9886-aa6139382a0c
 md"""
-We initialize the mean of variational posterior of the subspace $q(\mathbf{W})$ to the $Q+1$ eigenvectors of the, we extract the 
+ $Q$ is dimension of the subspace 
 """
 
-# ╔═╡ e11390db-5c52-48b8-bc18-1b5991c74816
-begin 
-	Ψ = hcat(vcat(f⁻¹.(unpack.(qθs, μ.(qθs))))...)
-	Ψ̄ = sum(Ψ, dims=2) ./ size(Ψ, 2)
-	local Y = (Ψ .- Ψ̄)
-	local V = eigen(Symmetric(Y * Y')).vectors[(end-Q+1):end, :]
-	#local V = eigen(Symmetric(Y * Y')).vectors[:, :]
-	W₀ = Matrix(vcat(V, reshape(Ψ̄, 1,  :)))
-	eigen(Symmetric(Y * Y')).values
-end
+# ╔═╡ c2f69d52-7533-4bea-9457-f8ba4f324ee8
+Q = 2
 
-# ╔═╡ 391e8086-206f-4a5c-ab67-05d608f252dc
-W₀
+# ╔═╡ 0ae825a4-f21e-4ed9-a08c-2d781d2c9576
+pW = JointNormalFixedCov(zeros(Q+1, P))
 
-# ╔═╡ 236cc2fb-c314-46b8-a096-56a4a599f2a4
-Ψ
+# ╔═╡ 0fd9bb0e-a8b0-4b55-9af8-8b3356fc53a5
+ph = Normal(Q)
 
-# ╔═╡ c5dfed78-b5ea-4430-aa2f-680c2c442d22
-f(Ψ[:, 1])
-
-# ╔═╡ 899b1b8e-1a96-4d36-89ba-77cd2f9c612d
-begin 
-	local p = plot(legend=false)
-	local k = 2
-	for (phone, X, ψ) in zip(phones, Xs, eachcol(Ψ))
-		ψ = W₀[k:end-1,:]' * (W₀[k:end-1, :] * ψ) + W₀[end,:]
-		Λμ, μᵀΛμ, Λ, logdetΛ = f(ψ)
-		Σ = inv(Λ)
-		μ = Σ*Λμ
-		μ = μ[2:3]
-		Σ = Σ[2:3,2:3]
-		plotnormal!(μ, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
-	end
-	p
-end
-
-# ╔═╡ d8fe12ad-ab08-404f-8c98-92271e8d2e25
-begin
-	local k = length(gsm.models)
-	local Ys = Xs[1:k]
-	
-	local qH = [NormalDiag(zeros(Q), zeros(Q)) for p in 1:k]
-	local qW = JointNormal(zeros(Q, P), zeros(Q, P))
-	local qb = NormalDiag(zeros(P), zeros(P))
-	local μ = getstats(gsm, (qW, qb, qH))
-	elbo(gsm, Ys, (qW, qb, qH), μ) / sum(size.(Xs, 2))
-end
+# ╔═╡ 37067855-9706-404e-ac02-8e15dc9a84d5
+gsm = GSM(f, pW, [NormalModel(ph) for p in collect(phones)[1:end]])
 
 # ╔═╡ 4274cf0e-0cc1-41f4-a0bf-ad46785fea7d
-begin
-	local k = length(gsm.models)
-	#local Ys = Xs[1:k]
-	Ys = [
-		0.5*randn(4, 500) .+ [0, 5, 0, 0], 
-		0.5*randn(4, 500) .+ [0, 0, 5, 0], 
-		0.5*randn(4, 500) .+ [0, -5, 0, 0]
-	]
+begin	
+	# Initialization of the variational posterior
+	local qθ = (
+		JointNormalFixedCov(randn(Q+1, P)), 
+		[Normal(Q) for model in gsm.models]
+	)
+
+	# Total number of observed data points 
+	local N = sum(size.(Xs, 2))
 	
-	qH = [NormalDiag(zeros(Q), zeros(Q) .- 1) for p in 1:k]
-	#qH = [NormalIso(zeros(Q), Float64(0)) for p in 1:k]
-	qW = JointNormal(zeros(Q, P), zeros(Q, P) .- 1)
-	qb = NormalDiag(zeros(P), zeros(P) .- 1)
-	
-	β = 10
-	l = 1
-	local qθ = (qW, qb, qH)
-	N = sum(size.(Ys, 2))
 	Lg = []
-	
-	for t in 1:10000
+	for t in 1:100000
 		μ = getstats(gsm, qθ)
-		(l, (∇μ,)) = withgradient(μ -> elbo(gsm, Ys, qθ, μ)/N, μ)
-
-		# lr = 0.1
-		# if t < 50000
-		# 	∇μ = (
-		# 		∇μ[1] ./ norm(∇μ[1]),
-		# 		∇μ[2] ./ norm(∇μ[2]),
-		# 		∇μ[3] ./ norm(∇μ[3])
-		# 	)
-		# 	lr = 10
-		# end
-		for (i, g) in enumerate(∇μ)
-			println("norm $i : $(norm(g))")
-		end
-		∇μ = (norm(g) > 100 ? g ./ norm(g) : g for g in ∇μ)
-
-		qθ = BayesianModels.newposterior(gsm, qθ, ∇μ; lrate=1)
-	
+		(l, (∇μ,)) = withgradient(μ -> elbo(gsm, Xs, qθ, μ)/N, μ)		
+		qθ = newposterior(gsm, qθ, ∇μ; lrate=1e-2)
+		
 		push!(Lg, l)
 	end
-	qW, qb, qH = qθ
+	qW, qH = qθ
 	Lg
 end
 
-# ╔═╡ 732afd32-13b0-4d7e-8d4a-ca60e14e0be0
-qW
-
-# ╔═╡ 937cf6f8-8fe6-4ea0-85d2-af94f6214784
-μ(qW)
-
-# ╔═╡ 47d83857-1c47-4aa7-b04a-22aecd821849
-x̄, x̄² = unpack(qW, μ(qW))
-
-# ╔═╡ a51f99b6-6219-4bb4-b2d0-1cd7b0e103eb
-log.(x̄² .- (x̄ .^ 2))
-
-# ╔═╡ 73bd4d43-4912-40f4-a25b-b9aed4876607
-
-
-# ╔═╡ df3c96b6-02b5-4f51-877a-564062c749ba
-μ.(qH)
-
-# ╔═╡ b46d8867-ce48-47d6-9be0-df3ed9e77110
-qH
-
-# ╔═╡ 6944ed01-1932-407d-86b0-b4269af6d25c
-qb
-
 # ╔═╡ 35984926-37a0-4de4-a0b7-4eb93ed6bade
 begin 
-	local p = plot(legend=false)
+	local p = plot(legend=false, xrange=(-3, 3), yrange=(-3,3))
 	local k = 1
 	local d1, d2 = 2, 3
-	for (phone, X, qh) in zip(phones, Ys, qH)
-		ψ = (qW.M + exp.(-.5*qW.lnΛ) .* randn(size(qW.M)...))' * (qh.μ .+ exp.(-0.5 * qh.lnλ) .* randn(2))
-		ψ = ψ + qb.μ + exp.( -.5 * qb.lnλ) .* randn(size(qb.μ))
+	for (phone, X, qh) in zip(phones, Xs, qH)
+		h = sample(qh)
+		W = qW.M 
+		ψ = W' * vcat(h, 1)
 		Λμ, μᵀΛμ, Λ, logdetΛ = f(ψ)
 		Σ = inv(Λ)
 		μ = Σ*Λμ
@@ -359,65 +276,148 @@ begin
 		plotnormal!(μ, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
 		scatter!(X[d1,:], X[d2,:])
 	end
-	
 	p
 end
 
+# ╔═╡ cfc2db2f-ec6f-4e7c-bda5-aee0a94ef15e
+qW
+
 # ╔═╡ 926070be-3e40-456f-95b5-53399d7c2644
-Xs[1]
+μ(qH[1])
 
 # ╔═╡ 70dad4a3-e470-4c57-93c6-840eb29e5317
 begin 
 	local p = plot(legend=false)
 	local k = 1
-	local d1, d2 = 1,2
+	local d1, d2 = 1, 2
 	for (phone, X, qh) in zip(phones, Xs, qH)
-		Σ = inv(diagm(ones(length(qh.μ)) .* exp.(qh.lnλ)))[d1:d2,d1:d2]
-		μ = qh.μ[d1:d2]
-		plotnormal!(μ, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
+		x, diagxxᵀ, vechxxᵀ =  unpack(qh, μ(qh))
+		m = x[d1:d2]
+		xxᵀ = diagm(diagxxᵀ) + CompressedSymmetric(size(x, 1), 1, vechxxᵀ)
+		Σ = (xxᵀ - m*m')[d1:d2,d1:d2]
+		annotate!(m[1], m[2], phone)
+		plotnormal!(m, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
 	end
 	p
 end
 
 # ╔═╡ ebba18b7-1a20-45aa-b843-2baa1b60f468
-plot(Lg[8000:10:end], label=false)
+plot(Lg[10000:10:end], label=false)
 
-# ╔═╡ e62cd0a8-56d3-468a-8a92-5ac3f227547e
-qW.M
+# ╔═╡ c6d3f311-7593-40cd-b01c-7b7f6b067a72
+function gsm_η(gsm::GSM, qW, h)
+	Λμ, μᵀΛμ, Λ, logdetΛ = f(qW.M' * vcat(h, 1))
+	vcat(Λμ, diag(Λ), vech(Λ, 1))
+end
 
-# ╔═╡ df2f789e-27a7-4b32-86e0-072e0b08ea0b
-(1 ./ exp.(qW.lnΛ))
+# ╔═╡ c0a18a14-475f-4d99-8594-f8054e404f14
+gsm_η(gsm, qW, zeros(2))
 
-# ╔═╡ d4709c19-3581-4d8b-9497-45ba43cdf938
-qh = qH[1]
+# ╔═╡ 3cf213b2-b9e6-4765-a444-76142e700d93
+function gsm_μ(gsm::GSM, η)
+	L = length(η)
+	D = Int((-(3/2) + sqrt((9/4) + 2L)))
 
-# ╔═╡ 0dfd2c1f-6cd5-4397-bddb-dd7e15838fd0
-μx = unpack(qh, μ(qh))
+	Λμ = η[1:D]
+	diagΛ = η[D+1:2*D]
+	vechΛ = η[2*D+1:end]
+	Λ = diagm(diagΛ) + CompressedSymmetric(D, 1, vechΛ)
 
-# ╔═╡ d1251073-2ca7-4b54-901b-96e1933fe46c
-x, x² = μx
+	Σ = inv(Symmetric(Λ))
+	μ = Σ * Λμ
 
-# ╔═╡ dd2dd84c-1884-426b-96dc-2e30bdd6cf92
-mm = x .^ 2
+	vcat(μ, vec(Σ + μ * μ'))
+end
 
-# ╔═╡ 8f0e8dfa-5be2-45ce-9dd1-a02bf989a883
-σ² = x² .- mm
+# ╔═╡ a05fb9e3-5ce9-4ccc-9418-178d3d4aa18f
+function gsm_ξ(gsm::GSM, qW, η)
+	W = qW.M
+	W⁺ = inv(W*W') * W
+	h = W⁺ * f⁻¹(η)
+	h[1:end-1]
+end
 
-# ╔═╡ de63b69a-004b-4052-baf8-2fbf9d9b33fe
-Z = x .+ sqrt.(x² .- mm) .* randn(eltype(x), 4, 100)
+# ╔═╡ 45d5823c-2044-4815-a6e4-78e02c568f20
+function gsm_A(gsm::GSM, η)
+	L = length(η)
+	D = Int((-(3/2) + sqrt((9/4) + 2L)))
 
-# ╔═╡ 3eb2e6ee-85d4-44fa-af7b-3eeda3f94bcd
+	Λμ = η[1:D]
+	diagΛ = η[D+1:2*D]
+	vechΛ = η[2*D+1:end]
+	Λ = diagm(diagΛ) + CompressedSymmetric(D, 1, vechΛ)
+	Σ = inv(Λ)
+	
+	-(1/2) * logdet(Λ) + (1/2) * Λμ' * (Σ * Λμ) 
+end
+
+# ╔═╡ 534dc966-f719-4049-aabc-bed102de1901
+gsm_A(gsm, gsm_η(gsm, qW, zeros(2)))
+
+# ╔═╡ b7c4d472-a001-41d8-b2ae-97ee9b095c47
+ForwardDiff.hessian(η -> gsm_A(gsm, η), gsm_η(gsm, qW, zeros(2)))
+
+# ╔═╡ 6eaac0ae-2153-4dec-9abc-8114f95b8a67
+ForwardDiff.jacobian(h -> gsm_ξ(gsm, qW, h), gsm_η(gsm, qW, zeros(2)))
+
+# ╔═╡ 9952e00f-0b61-4c12-a8f6-4c0384fdd34b
+gsm_μ(gsm, gsm_η(gsm, qW, zeros(2)))
+
+# ╔═╡ cee9c7c9-c356-482e-b90e-4c9ec869eb0a
+gsm_ξ(gsm, qW, gsm_η(gsm, qW, zeros(2)))
+
+# ╔═╡ 8488be6d-f08e-4d26-a41f-fa3350627d12
+function trajectory(gsm, qW, A, B)
+	traj = [A]
+	while norm(traj[end] - B) > 1e-1		
+		η = gsm_η(gsm, qW, traj[end])
+		H = ForwardDiff.hessian(η -> gsm_A(gsm, η), η)
+		J = ForwardDiff.jacobian(h -> gsm_ξ(gsm, qW, h), η)
+		(∇h,) = Zygote.gradient(h -> -(h - B)' * (h - B), traj[end])	
+		
+		#∇h = ∇h ./ norm(∇h) 
+		G = J * H * J'
+		v = inv(G) * ∇h
+		v = v ./ norm(v)
+		 
+		push!(traj, traj[end] + 1e-3 * v)
+	end
+	hcat(traj...)
+end
+
+# ╔═╡ 839249a8-dae0-4b29-8717-278b5f495176
 begin
-	m = qh.μ[1:2]
-	Σ = diagm(exp.(-qh.lnλ))[1:2,1:2]
-	p = plot(legend=false)
-	plotnormal!(m, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
-	scatter!(Z[1, :], Z[2,:])
+	p = plot(xlims=(-3, 3), ylims=(-3, 3), legend=false)
+	s, e = -4, 4
+	for i = s:0.5:e
+		println("i = $(i)")
+		t = trajectory(gsm, qW, Float64[s, i], Float64[e, i])
+		plot!(t[1, :], t[2, :], linecolor=:black)
+	end
+
+	for i = s:0.5:e
+		t = trajectory(gsm, qW, [i, s], [i, e])
+		plot!(t[1, :], t[2, :], linecolor=:black)
+	end
+	
 	p
 end
 
-# ╔═╡ 65cc389d-a5e6-4f12-b6e7-6c32fd192018
-qh.μ
+# ╔═╡ 6b77d67e-1690-4f60-812e-9687030e3aa2
+begin 
+	local k = 1
+	local d1, d2 = 1, 2
+	for (phone, X, qh) in zip(phones, Xs, qH)
+		x, diagxxᵀ, vechxxᵀ =  unpack(qh, μ(qh))
+		m = x[d1:d2]
+		xxᵀ = diagm(diagxxᵀ) + CompressedSymmetric(size(x, 1), 1, vechxxᵀ)
+		Σ = (xxᵀ - m*m')[d1:d2,d1:d2]
+		
+		annotate!(m[1], m[2], arpa2ipa[phone])
+		plotnormal!(m, Σ, σ=2, colorfillalpha=0.4, linealpha=0, label=false)
+	end
+	p
+end
 
 # ╔═╡ Cell order:
 # ╟─e5883656-7aa1-11ec-2648-4f9569fddcf8
@@ -428,6 +428,7 @@ qh.μ
 # ╠═04ed61ae-a1ed-4114-a160-100e86f0769a
 # ╠═ff11bde6-a2c8-47f5-a3bf-a4b6f9758747
 # ╠═4b071c89-67b6-4964-a4b1-c784f6d99f9c
+# ╠═e2aa337d-4cdc-43d2-a8f6-5d0a607a3de0
 # ╠═570dc7f7-10dc-46ed-9958-2acc0ed76ad1
 # ╠═c74b04e1-b19d-4398-b376-dda5fa88ca86
 # ╠═15c82689-be5d-411b-9594-1ba031fb2a0d
@@ -441,46 +442,30 @@ qh.μ
 # ╟─d12fcd36-51b4-463e-b01c-807239522d6b
 # ╠═44f0dfd2-cde0-4cc5-b8e7-03d36932e335
 # ╠═fb6c11f7-e68c-4edf-965e-d36dd19cad2f
-# ╠═1717eead-5f0a-45cb-bc73-85414e9f06e8
-# ╠═d159e0b9-7118-4155-ba20-a8bc73465fc8
-# ╠═07f8c201-682a-4e82-a210-0b8c8050d7bc
-# ╠═9163576a-5aff-49a2-8c52-f240c0c338e3
-# ╠═93de5fe9-6fe8-49d2-b9be-462f90148dd9
-# ╟─a0cc6a05-6d8a-4b3f-9886-aa6139382a0c
-# ╠═c2f69d52-7533-4bea-9457-f8ba4f324ee8
+# ╠═93109c2d-a784-408a-9466-c1d43dc8cd48
 # ╟─3d4c8ff8-1621-4710-a49e-7ccda892cd7c
 # ╠═4a09cd83-a32c-486d-afa0-af460a20d784
+# ╟─a0cc6a05-6d8a-4b3f-9886-aa6139382a0c
+# ╠═c2f69d52-7533-4bea-9457-f8ba4f324ee8
 # ╠═0ae825a4-f21e-4ed9-a08c-2d781d2c9576
-# ╠═595b1c89-f134-4a73-8193-f5f5b6e5d83d
 # ╠═0fd9bb0e-a8b0-4b55-9af8-8b3356fc53a5
 # ╠═37067855-9706-404e-ac02-8e15dc9a84d5
-# ╟─ca225bbf-b945-4366-a9cd-2b6436a78b26
-# ╠═e11390db-5c52-48b8-bc18-1b5991c74816
-# ╠═391e8086-206f-4a5c-ab67-05d608f252dc
-# ╠═236cc2fb-c314-46b8-a096-56a4a599f2a4
-# ╠═c5dfed78-b5ea-4430-aa2f-680c2c442d22
-# ╠═899b1b8e-1a96-4d36-89ba-77cd2f9c612d
-# ╠═d8fe12ad-ab08-404f-8c98-92271e8d2e25
 # ╠═4274cf0e-0cc1-41f4-a0bf-ad46785fea7d
-# ╠═732afd32-13b0-4d7e-8d4a-ca60e14e0be0
-# ╠═937cf6f8-8fe6-4ea0-85d2-af94f6214784
-# ╠═47d83857-1c47-4aa7-b04a-22aecd821849
-# ╠═a51f99b6-6219-4bb4-b2d0-1cd7b0e103eb
-# ╠═73bd4d43-4912-40f4-a25b-b9aed4876607
-# ╠═df3c96b6-02b5-4f51-877a-564062c749ba
-# ╠═b46d8867-ce48-47d6-9be0-df3ed9e77110
-# ╠═6944ed01-1932-407d-86b0-b4269af6d25c
 # ╠═35984926-37a0-4de4-a0b7-4eb93ed6bade
+# ╠═cfc2db2f-ec6f-4e7c-bda5-aee0a94ef15e
 # ╠═926070be-3e40-456f-95b5-53399d7c2644
 # ╠═70dad4a3-e470-4c57-93c6-840eb29e5317
 # ╠═ebba18b7-1a20-45aa-b843-2baa1b60f468
-# ╠═e62cd0a8-56d3-468a-8a92-5ac3f227547e
-# ╠═df2f789e-27a7-4b32-86e0-072e0b08ea0b
-# ╠═d4709c19-3581-4d8b-9497-45ba43cdf938
-# ╠═0dfd2c1f-6cd5-4397-bddb-dd7e15838fd0
-# ╠═d1251073-2ca7-4b54-901b-96e1933fe46c
-# ╠═dd2dd84c-1884-426b-96dc-2e30bdd6cf92
-# ╠═8f0e8dfa-5be2-45ce-9dd1-a02bf989a883
-# ╠═de63b69a-004b-4052-baf8-2fbf9d9b33fe
-# ╠═3eb2e6ee-85d4-44fa-af7b-3eeda3f94bcd
-# ╠═65cc389d-a5e6-4f12-b6e7-6c32fd192018
+# ╠═c6d3f311-7593-40cd-b01c-7b7f6b067a72
+# ╠═c0a18a14-475f-4d99-8594-f8054e404f14
+# ╠═3cf213b2-b9e6-4765-a444-76142e700d93
+# ╠═a05fb9e3-5ce9-4ccc-9418-178d3d4aa18f
+# ╠═45d5823c-2044-4815-a6e4-78e02c568f20
+# ╠═534dc966-f719-4049-aabc-bed102de1901
+# ╠═b7c4d472-a001-41d8-b2ae-97ee9b095c47
+# ╠═6eaac0ae-2153-4dec-9abc-8114f95b8a67
+# ╠═9952e00f-0b61-4c12-a8f6-4c0384fdd34b
+# ╠═cee9c7c9-c356-482e-b90e-4c9ec869eb0a
+# ╠═8488be6d-f08e-4d26-a41f-fa3350627d12
+# ╠═839249a8-dae0-4b29-8717-278b5f495176
+# ╠═6b77d67e-1690-4f60-812e-9687030e3aa2

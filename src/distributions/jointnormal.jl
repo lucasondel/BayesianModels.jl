@@ -1,41 +1,32 @@
 # SPDX-License-Identifier: MIT
 
-abstract type AbstractJointNormal <: ExponentialFamilyDistribution end
+# Joint Normal distribution with fixed identity covariance matrix.
 
-struct JointNormal{T1<:AbstractMatrix,T2<:AbstractMatrix} <: AbstractJointNormal
+struct JointNormalFixedCov{T1<:AbstractMatrix} <: AbstractNormal
     M::T1 # QxD mean
-	lnΛ::T2 # QxD per-dimension log precision
 end
 
-function η(p::AbstractJointNormal)
-    Λ = exp.(p.lnΛ)
-    vcat(vec(Λ .* p.M), -(1/2)*vec(Λ))
-end
+η(p::JointNormalFixedCov) = vec(p.M)
 
-function ξ(p::AbstractJointNormal, η)
+function ξ(p::JointNormalFixedCov, η)
 	Q, D = size(p.M)
-    Λ = -2 * reshape(η[Q*D+1:end], Q, D)
-    M = (1 ./ Λ) .* reshape(η[1:Q*D], Q, D)
-    vcat(vec(M), vec(log.(Λ)))
+    M = reshape(η, Q, D)
+    vec(M)
 end
 
-function unpack(p::AbstractJointNormal, μ)
+function unpack(p::JointNormalFixedCov, μ)
 	Q, D = size(p.M)
-	XXᵀ = reshape(μ[Q*D+1:end], Q, D)
-    X = reshape(μ[1:Q*D], Q, D)
-	(X=X, XXᵀ=XXᵀ)
+    X = reshape(μ, Q, D)
+	(X=X,)
 end
 
-function A(p::AbstractJointNormal, η)
+function A(p::JointNormalFixedCov, η)
 	Q, D = size(p.M)
-
-    Λ = -2 * reshape(η[Q*D+1:end], Q, D)
-    M = (1 ./ Λ) .* reshape(η[1:Q*D], Q, D)
-
-    -(1/2) * sum(log.(Λ)) + (1/2)*sum(M .* Λ .* M)
+    M = reshape(η, Q, D)
+    (1/2)*sum(M .* M)
 end
 
-function sample(p::AbstractJointNormal)
+function sample(p::JointNormalFixedCov)
 	Q, D = size(p.M)
-    p.M + sqrt(1 ./ exp.(p.Λ)) .* randn(Q, D)
+    p.M + randn(Q, D)
 end

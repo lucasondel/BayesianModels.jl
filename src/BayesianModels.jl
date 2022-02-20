@@ -8,11 +8,12 @@ using LinearAlgebra
 using SpecialFunctions
 using Zygote
 
-# Custom type for positive definite matrix.
+# Custom type compressed lower triangular matrix.
 include("utils/clowertri.jl")
 
 export vech
-export CompressedTriangularMatrix
+export CompressedLowerTriangular
+export CompressedSymmetric
 
 include("distributions/expfamily.jl")
 
@@ -30,8 +31,7 @@ include("distributions/wishart.jl")
 include("distributions/normalwishart.jl")
 include("distributions/jointnormal.jl")
 
-export JointNormal
-export JointNormalDiag
+export JointNormalFixedCov
 export Normal
 export NormalDiag
 export NormalIso
@@ -42,6 +42,7 @@ export NormalWishart
 include("models/model.jl")
 
 export loglikelihood
+export newposterior
 export elbo
 export getstats
 
@@ -52,3 +53,4 @@ export NormalModel
 export GSM
 
 end # module
+
