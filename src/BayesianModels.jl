@@ -48,9 +48,11 @@ export getstats
 
 include("models/normal.jl")
 include("models/gsm.jl")
+include("models/gsmphonetic.jl")
 
 export NormalModel
 export GSM
+export GSMPhonetic
 
 end # module
 

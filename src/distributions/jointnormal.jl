@@ -7,12 +7,7 @@ struct JointNormalFixedCov{T1<:AbstractMatrix} <: AbstractNormal
 end
 
 η(p::JointNormalFixedCov) = vec(p.M)
-
-function ξ(p::JointNormalFixedCov, η)
-	Q, D = size(p.M)
-    M = reshape(η, Q, D)
-    vec(M)
-end
+ξ(p::JointNormalFixedCov, η) = η
 
 function unpack(p::JointNormalFixedCov, μ)
 	Q, D = size(p.M)
@@ -20,11 +15,7 @@ function unpack(p::JointNormalFixedCov, μ)
 	(X=X,)
 end
 
-function A(p::JointNormalFixedCov, η)
-	Q, D = size(p.M)
-    M = reshape(η, Q, D)
-    (1/2)*sum(M .* M)
-end
+A(p::JointNormalFixedCov, η) = (1/2) * dot(η, η)
 
 function sample(p::JointNormalFixedCov)
 	Q, D = size(p.M)
