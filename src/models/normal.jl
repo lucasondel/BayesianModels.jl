@@ -4,21 +4,21 @@ struct NormalModel{T} <: AbstractModel
     pθ::T
 end
 
-function loglikelihood(::NormalModel, x::AbstractVector, uTθ)
-    Λμ, μᵀΛμ, Λ, logdetΛ = uTθ
-    D = length(x)
-    xᵀΛx = dot(x, Λ * x)
-    μᵀΛx = dot(x, Λμ)
-    -(1/2)*(xᵀΛx + (μᵀΛμ - logdetΛ + D*log(2π))) + μᵀΛx
-end
-
-#function loglikelihood(::NormalModel, X::AbstractMatrix, uTθ)
+#function loglikelihood(::NormalModel, x::AbstractVector, uTθ)
 #    Λμ, μᵀΛμ, Λ, logdetΛ = uTθ
-#    D = size(X, 1)
-#    XᵀΛX = sum(X .* (Λ * X), dims=1)
-#    μᵀΛX = Λμ' * X
-#    -(1/2)*(XᵀΛX .+ (μᵀΛμ - logdetΛ + D*log(2π))) .+ μᵀΛX
+#    D = length(x)
+#    xᵀΛx = dot(x, Λ * x)
+#    μᵀΛx = dot(x, Λμ)
+#    -(1/2)*(xᵀΛx + (μᵀΛμ - logdetΛ + D*log(2π))) + μᵀΛx
 #end
+
+function loglikelihood(::NormalModel, X::AbstractMatrix, uTθ)
+    Λμ, μᵀΛμ, Λ, logdetΛ = uTθ
+    D = size(X, 1)
+    XᵀΛX = sum(X .* (Λ * X), dims=1)
+    μᵀΛX = Λμ' * X
+    -(1/2)*(XᵀΛX .+ (μᵀΛμ - logdetΛ + D*log(2π))) .+ μᵀΛX
+end
 
 #######################################################################
 # GSM prior/posterior

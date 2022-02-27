@@ -49,9 +49,17 @@ function _llh(gsm, labels, x::AbstractVector, uTθ)
     loglikelihood(gsm.model, x, η)
 end
 
-function loglikelihood(gsm::GSMPhonetic, labels_data, uTθ)
-    labels, data = labels_data
-    sum(_llh.(Ref(gsm), labels, eachcol(data), Ref(uTθ)))
+function loglikelihood(gsm::GSMPhonetic, groups, uTθ)
+    #labels, data = labels_data
+    #sum(_llh.(Ref(gsm), labels, eachcol(data), Ref(uTθ)))
+    sum(groups) do labels_data
+        (l, s, p), data = labels_data
+        L, S, λ̂, σ̂, π̂ = uTθ
+        P = sum(L .* λ̂[l]) + sum(S .* σ̂[s])
+        ψ = P' * π̂[p]
+        η = gsm.f(ψ)
+        sum(loglikelihood(gsm.model, data, η))
+    end
 end
 
 function newposterior(gsm::GSMPhonetic, qθ::Tuple, ∇μ; lrate=1, clip=true)

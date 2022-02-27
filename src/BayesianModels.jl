@@ -23,6 +23,7 @@ export ξ
 export A
 export kldiv
 export sample
+export stdparams
 export unpack
 
 include("distributions/normal.jl")

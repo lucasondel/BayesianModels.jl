@@ -30,32 +30,55 @@ md"""
 md"""## Lingua Libre Formants data
 
 We use the [Lingua Libre Formants](https://github.com/lucasondel/LinguaLibreFormants) data for our analysis.
+
+### Getting the data
+
+We download the data and store it in a local file.
 """
 
-# ╔═╡ c01de0cd-43f8-49cc-a8c9-ffbbc182d9e9
+# ╔═╡ d1588a1c-babe-4223-bc6d-f353314ed2c0
+localfile = "formants.tsv"
+
+# ╔═╡ 262e0395-814f-4315-b25e-21c18a7a9a5f
 begin
 	# Database URL
 	local dataurl = "https://raw.githubusercontent.com/lucasondel/LinguaLibreFormants/main/data/formants.tsv"
-	# File name stored on disk
-	local localfile = "formants.tsv"
 
 	# Download the data if it is not done already
 	if ! isfile(localfile)
 		run(`wget $dataurl`)
 	end
+end
 
-	# Read the raw data
+# ╔═╡ 4bbdd3d2-eb62-4889-9c8a-20141c0b140a
+md"""
+### Data preparation
+
+In a nutshell:
+1. we extract the list of languages, speakers and phones
+2. organized the data as a $3 \times N$ matrix where 3 is for 3 first formants and $N$ is the number of data points
+3. for each data point we extract the annotation (language, speaker, phone)
+"""
+
+# ╔═╡ ee1d1c45-70f5-4fe7-a8e2-9134d45a2b95
+begin
 	local rawdata = readdlm(localfile)
-
-	# Prepare the data
+	
 	speakers = Set()
 	languages = Set()
 	phones = Set()
 	labels = []
 	data = []
-	for (lang, spk, phone, f1, f2, f3, duraiton) in eachrow(rawdata)
-		lang, spk, phone = Symbol(lang), Symbol(spk), Symbol(phone)
+	for (lang, spk, ipaphone, f1, f2, f3, duration) in eachrow(rawdata)
+		# Remove the duration symbol
+		ipaphone = replace(ipaphone, "ː" => "")
+	
+		lang, spk, ipaphone = Symbol(lang), Symbol(spk), Symbol(ipaphone)
 		push!(data, vcat(f1, f2, f3))
+		
+		phone = (lang, ipaphone)
+		spk = (lang, spk)
+		
 		push!(labels, (lang, spk, phone))
 		push!(speakers, spk)
 		push!(languages, lang)
@@ -63,6 +86,12 @@ begin
 	end
 	data = hcat(data...)
 	labels = vcat(labels...)
+
+	# Mean-variance normalization of the data
+	local x̄ = sum(data, dims=2) / size(data, 2)
+	local x̄² = sum(data .^ 2, dims=2) / size(data, 2)
+	local var = x̄² - (x̄ .^ 2)
+	data = (data .- x̄) ./ sqrt.(var)
 
 	# Transform the languages, speakers and phone sets to ordered collections
 	languages = collect(languages)
@@ -80,7 +109,7 @@ begin
 	# Transform the labels to use the id rather than symbols
 	labels = [(lang2id[lang], spk2id[spk], phone2id[phone])
 			  for (lang, spk, phone) in labels]
-	
+
 	# Group the data for each triplet (lang, speaker, phone)
 	groups = Dict()
 	for (label, sample) in zip(labels, eachcol(data))
@@ -89,38 +118,60 @@ begin
 		groups[label] = list
 	end
 	groups = tuple((k => hcat(groups[k]...) for k in keys(groups))...)
+end
 
+# ╔═╡ 474abeb1-82f8-4a74-a03c-be1cf55df840
+md"Some important constants:"
 
-	# Some useful constants
-	D = size(data, 1)
-	N = size(data, 2)
-	L = length(languages)
-	S = length(speakers)
-	P = length(phones)
+# ╔═╡ 31e56fed-e4f0-4c71-abb2-5c2eff5a9a47
+D = size(data, 1)
 
+# ╔═╡ 61cc1ab2-a615-4a9b-91f9-bc5909e29297
+N = size(data, 2)
+
+# ╔═╡ e08cc384-49dc-4585-a2ab-fbec9fcfe9d2
+L = length(languages)
+
+# ╔═╡ b8e7f92f-0065-46fe-ac6b-5adf29b3379f
+S = length(speakers)
+
+# ╔═╡ ef71661f-338e-4d57-86ed-fc2c308a744f
+P = length(phones)
+
+# ╔═╡ c01de0cd-43f8-49cc-a8c9-ffbbc182d9e9
+begin
 	md"""
+	### Data statistics
+	
 	| \# languages | \# speakers  | \# phones |
 	|:------------:|:------------:|:---------:|
 	| $L           | $S           | $P        |
 
-	We note $D$ the dimension of the observed space. In our case, $D$ is $D.
 	"""
 end
 
-# ╔═╡ e9a8feec-eb20-4c55-8669-6c6c085b4d85
-labels
+# ╔═╡ 8d416ab7-3ae7-4984-a7e6-1f56692d1b7b
+begin
+	mdstr = "| language | # speakers | phones |\n"
+	mdstr *= "|:---------|:-----------:|:-------|\n"
+	for lang in languages
+		mdstr *= "| $lang | "
 
-# ╔═╡ 4fd12bad-b244-428e-8faa-f6000d0d9e3a
-collect(languages)
-
-# ╔═╡ dc2d02f7-2044-483c-99b1-b864c6940223
-data
-
-# ╔═╡ 29b92c17-36dd-49c5-afdf-21c2ed759fba
-groups
-
-# ╔═╡ 32804074-8126-4328-9b2b-9785690c76e5
-lang2id
+		ns = 0
+		for (l, spk) in speakers
+			if l == lang ns += 1end
+		end
+		mdstr *= "$ns | "
+		
+		for (l, phone) in phones
+			if l == lang
+				mdstr *= "$phone "
+			end
+		end
+		mdstr *= "|\n"
+	end
+	Markdown.parse(mdstr)
+end
 
 # ╔═╡ 8b535f17-7a55-42da-ba7a-c161bec9fd28
 md"""
@@ -293,45 +344,119 @@ q₀π = [Normal(Qπ) for phone in phones]
 # ╔═╡ 42ccdf0d-8a5f-404d-8965-cccc7f85d164
 q₀θ = (q₀L, q₀S, q₀λ, q₀σ, q₀π)
 
+# ╔═╡ 85e89c27-0371-42a9-8b3c-4fc677d1f7a7
+md"""
+### Training
+
+
+"""
+
 # ╔═╡ cde6061d-57af-4aae-a964-4cafabfdd5f1
 begin	
-	local qθ = q₀θ
+	qθ = q₀θ
 	
 	loss = []
-	for t in 1:10
-		println("t: $t")
+	for t in 1:1000
 		μ = getstats(hgsm, qθ)
-		(l, (∇μ,)) = withgradient(μ -> elbo(hgsm, (labels, data), qθ, μ) / N, μ)		
+		(l, (∇μ,)) = withgradient(μ -> elbo(hgsm, groups, qθ, μ) / N, μ)		
 		qθ = newposterior(hgsm, qθ, ∇μ; lrate=1e-2)
 		
 		push!(loss, l)
 	end
-	#qW, qH = qθ
 	loss
 end
 
+# ╔═╡ 7175c939-bc9d-4b60-b145-b09cac018b7f
+plot(loss[100:1:end], legend=false)
+
 # ╔═╡ 4274c7f4-38d5-4bf0-87ae-417d715d9b3b
-gradient(μ -> elbo(hgsm, (labels, data), q₀θ, μ) / N, getstats(hgsm, q₀θ))		
+begin
+	local qλ = qθ[3]
+	local p = plot(legend=false)
+	for (i, q) in enumerate(qλ)
+		x, diagxxᵀ, hxxᵀ = unpack(q, μ(q))
+		m = x
+		Σ = diagm(diagxxᵀ) + CompressedSymmetric(2, 1, hxxᵀ) - x * x'
+		annotate!(m[1], m[2], id2lang[i])
+		plotnormal!(m, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
+	end
+	p
+end
 
-# ╔═╡ 72afd7c5-6abb-495d-9bea-b2ae6306327a
-elbo(hgsm, (labels, data), q₀θ, getstats(hgsm, q₀θ))
+# ╔═╡ ef349252-cf35-42bd-b562-7ec28bef7cdd
+begin
+	local qσ = qθ[4]
+	local p = plot(legend=false)
+	for (i, q) in enumerate(qσ)
+		x, diagxxᵀ, hxxᵀ = unpack(q, μ(q))
+		m = x
+		Σ = diagm(diagxxᵀ) + CompressedSymmetric(2, 1, hxxᵀ) - x * x'
+		plotnormal!(m, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
+	end
+	p
+end
 
-# ╔═╡ b033529c-1a3f-44f3-b546-954b4000edd1
-unpack(hgsm, q₀θ, getstats(hgsm, q₀θ))
+# ╔═╡ b9bba539-ba31-420e-a718-a952db80d4c2
+begin
+	local qπ = qθ[5]
+	local p = plot(legend=false, xlims=(-2, 2), ylims=(-2, 2))
+	for (i, q) in enumerate(qπ)
+		if i == 28 continue end
+		x, diagxxᵀ, hxxᵀ = unpack(q, μ(q))
+		m = x
+		Σ = diagm(diagxxᵀ) + CompressedSymmetric(2, 1, hxxᵀ) - x * x'
+		annotate!(m[1], m[2], id2phone[i][2])
+		plotnormal!(m, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
+	end
+	p
+end
 
-# ╔═╡ 7b905154-4bd3-47ed-ae9e-2227f0420bd4
+# ╔═╡ ab7167f2-41c4-4944-b769-d7d27c9bda12
+id2phone
 
+# ╔═╡ 8b939634-e3f2-4a29-91de-4ed56787bc78
+function minimum_divergence(hgsm, qθ)
+	qL, qS, qλ, qσ, qπ = qθ
+
+	μπ = map(μ, qπ)
+	stdπ = stdparams.(qπ, μπ)
+	
+	μπ₀ = sum(μπ) / length(qπ)
+	m₀, Σ₀ = stdparams(hgsm.model.pθ.pπ, μπ₀)
+	L₀ = cholesky(Σ₀).L
+	L₀⁻¹ = L₀
+
+	[Normal(L₀⁻¹ * (m - m₀), Symmetric(L₀⁻¹ * Σ * L₀⁻¹')) for (m, Σ) in stdπ]
+end
+
+# ╔═╡ b44032e6-bdff-4f43-a225-70cddc2d89cd
+minimum_divergence(hgsm, qθ)
+
+# ╔═╡ d045db5e-e646-4f04-9df3-be877cd505f9
+m, Σ = stdparams(qλ[1], unpack(qλ[1], sum(μ, qλ) / length(qλ)))
+
+# ╔═╡ b518b13e-f470-4c4b-8c2e-e3b0803beb62
+qθ[1][1].M
+
+# ╔═╡ ec85819b-1b0f-4f0e-9602-46c98402bfdf
+Lm⁻¹ = inv(Lm)
 
 # ╔═╡ Cell order:
 # ╟─6958bde2-c50f-4afd-8d08-7dfbfd97169a
 # ╠═3cd07b90-9e21-4a74-8d99-a6375beb7d1e
 # ╟─b83311ab-ca4f-432e-8627-5207517a81db
-# ╠═c01de0cd-43f8-49cc-a8c9-ffbbc182d9e9
-# ╠═e9a8feec-eb20-4c55-8669-6c6c085b4d85
-# ╠═4fd12bad-b244-428e-8faa-f6000d0d9e3a
-# ╠═dc2d02f7-2044-483c-99b1-b864c6940223
-# ╠═29b92c17-36dd-49c5-afdf-21c2ed759fba
-# ╠═32804074-8126-4328-9b2b-9785690c76e5
+# ╠═d1588a1c-babe-4223-bc6d-f353314ed2c0
+# ╠═262e0395-814f-4315-b25e-21c18a7a9a5f
+# ╟─4bbdd3d2-eb62-4889-9c8a-20141c0b140a
+# ╠═ee1d1c45-70f5-4fe7-a8e2-9134d45a2b95
+# ╟─474abeb1-82f8-4a74-a03c-be1cf55df840
+# ╠═31e56fed-e4f0-4c71-abb2-5c2eff5a9a47
+# ╠═61cc1ab2-a615-4a9b-91f9-bc5909e29297
+# ╠═e08cc384-49dc-4585-a2ab-fbec9fcfe9d2
+# ╠═b8e7f92f-0065-46fe-ac6b-5adf29b3379f
+# ╠═ef71661f-338e-4d57-86ed-fc2c308a744f
+# ╟─c01de0cd-43f8-49cc-a8c9-ffbbc182d9e9
+# ╟─8d416ab7-3ae7-4984-a7e6-1f56692d1b7b
 # ╟─8b535f17-7a55-42da-ba7a-c161bec9fd28
 # ╠═4c69229d-a272-49eb-9dc1-484c53bad338
 # ╠═3a303018-4560-4553-96f6-1600b0e1d6c6
@@ -358,8 +483,15 @@ unpack(hgsm, q₀θ, getstats(hgsm, q₀θ))
 # ╠═3a5cadd7-d15b-4da3-8a0b-9e7678514ff0
 # ╠═e343d7f3-9a50-4952-b429-40b982b2b49f
 # ╠═42ccdf0d-8a5f-404d-8965-cccc7f85d164
+# ╟─85e89c27-0371-42a9-8b3c-4fc677d1f7a7
 # ╠═cde6061d-57af-4aae-a964-4cafabfdd5f1
+# ╠═7175c939-bc9d-4b60-b145-b09cac018b7f
 # ╠═4274c7f4-38d5-4bf0-87ae-417d715d9b3b
-# ╠═72afd7c5-6abb-495d-9bea-b2ae6306327a
-# ╠═b033529c-1a3f-44f3-b546-954b4000edd1
-# ╠═7b905154-4bd3-47ed-ae9e-2227f0420bd4
+# ╠═ef349252-cf35-42bd-b562-7ec28bef7cdd
+# ╠═b9bba539-ba31-420e-a718-a952db80d4c2
+# ╠═ab7167f2-41c4-4944-b769-d7d27c9bda12
+# ╠═8b939634-e3f2-4a29-91de-4ed56787bc78
+# ╠═b44032e6-bdff-4f43-a225-70cddc2d89cd
+# ╠═d045db5e-e646-4f04-9df3-be877cd505f9
+# ╠═b518b13e-f470-4c4b-8c2e-e3b0803beb62
+# ╠═ec85819b-1b0f-4f0e-9602-46c98402bfdf

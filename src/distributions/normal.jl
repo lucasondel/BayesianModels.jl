@@ -8,11 +8,21 @@ struct Normal{T1<:AbstractVector,T2<:AbstractVector,T3<:AbstractVector} <: Abstr
     vechL::T3 # Half-vectorization of the L matrix
 end
 
-function Normal(μ::AbstractVector, Λ::AbstractMatrix)
-    L = cholesky(Λ).L
+function Normal(μ::AbstractVector, Σ::AbstractMatrix)
+    L = cholesky(inv(Σ)).L
     lnλ = log.(diag(L))
     vechL = vech(L, 1)
     Normal(μ, lnλ, vechL)
+end
+
+# Utility function to get the standard parameters from the expectation
+# parameters
+function stdparams(n::Normal, packed_μ)
+    unpacked_μ = unpack(n,  packed_μ)
+    x̄, diagx̄x̄ᵀ, vechx̄x̄ᵀ = unpacked_μ
+    x̄x̄ᵀ = diagm(diagx̄x̄ᵀ) + CompressedSymmetric(size(x̄, 1), 1, vechx̄x̄ᵀ)
+    x̄, x̄x̄ᵀ - Symmetric(x̄ * x̄')
+
 end
 
 Normal(μ::AbstractVector) =
