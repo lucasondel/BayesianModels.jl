@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.17.3
+# v0.17.2
 
 using Markdown
 using InteractiveUtils
@@ -372,11 +372,12 @@ function trajectory(gsm, qW, A, B)
 	while norm(traj[end] - B) > 1e-1		
 		η = gsm_η(gsm, qW, traj[end])
 		H = ForwardDiff.hessian(η -> gsm_A(gsm, η), η)
-		J = ForwardDiff.jacobian(h -> gsm_ξ(gsm, qW, h), η)
+		#J = ForwardDiff.jacobian(h -> gsm_ξ(gsm, qW, h), η)
+		J = ForwardDiff.jacobian(h -> gsm_η(gsm, qW, h), traj[end])
 		(∇h,) = Zygote.gradient(h -> -(h - B)' * (h - B), traj[end])	
 		
 		#∇h = ∇h ./ norm(∇h) 
-		G = J * H * J'
+		G = J' * H * J
 		v = inv(G) * ∇h
 		v = v ./ norm(v)
 		 

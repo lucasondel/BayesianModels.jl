@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.17.3
+# v0.17.2
 
 using Markdown
 using InteractiveUtils
@@ -356,7 +356,7 @@ begin
 	qθ = q₀θ
 	
 	loss = []
-	for t in 1:1000
+	for t in 1:300000
 		μ = getstats(hgsm, qθ)
 		(l, (∇μ,)) = withgradient(μ -> elbo(hgsm, groups, qθ, μ) / N, μ)		
 		qθ = newposterior(hgsm, qθ, ∇μ; lrate=1e-2)
@@ -367,7 +367,7 @@ begin
 end
 
 # ╔═╡ 7175c939-bc9d-4b60-b145-b09cac018b7f
-plot(loss[100:1:end], legend=false)
+plot(loss[10000:1:end], legend=false)
 
 # ╔═╡ 4274c7f4-38d5-4bf0-87ae-417d715d9b3b
 begin
@@ -399,14 +399,14 @@ end
 # ╔═╡ b9bba539-ba31-420e-a718-a952db80d4c2
 begin
 	local qπ = qθ[5]
-	local p = plot(legend=false, xlims=(-2, 2), ylims=(-2, 2))
+	local p = plot(legend=false)
 	for (i, q) in enumerate(qπ)
-		if i == 28 continue end
+		if phones[i][1] != :ita continue end
 		x, diagxxᵀ, hxxᵀ = unpack(q, μ(q))
 		m = x
 		Σ = diagm(diagxxᵀ) + CompressedSymmetric(2, 1, hxxᵀ) - x * x'
 		annotate!(m[1], m[2], id2phone[i][2])
-		plotnormal!(m, Σ, σ=2, fillalpha=0.4, linealpha=0, label=false)
+		plotnormal!(m, Σ, σ=2, fillcolor=:blue, fillalpha=0.2, linealpha=0, label=false)
 	end
 	p
 end

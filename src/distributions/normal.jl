@@ -21,8 +21,7 @@ function stdparams(n::Normal, packed_μ)
     unpacked_μ = unpack(n,  packed_μ)
     x̄, diagx̄x̄ᵀ, vechx̄x̄ᵀ = unpacked_μ
     x̄x̄ᵀ = diagm(diagx̄x̄ᵀ) + CompressedSymmetric(size(x̄, 1), 1, vechx̄x̄ᵀ)
-    x̄, x̄x̄ᵀ - Symmetric(x̄ * x̄')
-
+    x̄, Symmetric(x̄x̄ᵀ - x̄ * x̄')
 end
 
 Normal(μ::AbstractVector) =
@@ -34,13 +33,13 @@ function η(p::AbstractNormal)
     D = length(p.μ)
     L = diagm(exp.(p.lnλ)) .+ CompressedLowerTriangular(D, 1, p.vechL)
     Λ = L * L'
-    vcat(Λ*p.μ, -(1/2)*diag(Λ), -(1/2)*vech(Λ, 1))
+    vcat(Λ*p.μ, -(1/2)*diag(Λ), -vech(Λ, 1))
 end
 
 function ξ(p::AbstractNormal, η)
 	D = length(p.μ)
     diagΛ = -2 * diagm(η[D+1:2*D])
-    shΛ = -2 * CompressedSymmetric(D, 1, η[2*D+1:end])
+    shΛ = - CompressedSymmetric(D, 1, η[2*D+1:end])
     Λ = diagΛ + shΛ
     L = cholesky(Λ).L
     L⁻¹ = inv(L)
@@ -53,7 +52,6 @@ function unpack(p::AbstractNormal, μ)
 	x = μ[1:D]
     diagxxᵀ = μ[D+1:2*D]
     vechxxᵀ = μ[2*D+1:end]
-    #xxᵀ = diagm(diagxxᵀ) + CompressedSymmetric(size(x, 1), 1, vechxxᵀ)
 	(x=x, diagxxᵀ=diagxxᵀ, vechxxᵀ=vechxxᵀ)
 end
 
@@ -61,7 +59,7 @@ function A(p::AbstractNormal, η)
 	D = length(p.μ)
 
     diagΛ = -2 * diagm(η[D+1:2*D])
-    shΛ = -2 * CompressedSymmetric(D, 1, η[2*D+1:end])
+    shΛ = -CompressedSymmetric(D, 1, η[2*D+1:end])
     Λ = diagΛ + shΛ
     L = cholesky(Symmetric(Λ)).L
     L⁻¹ = inv(L)

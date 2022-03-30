@@ -51,37 +51,5 @@ function Base.replace_in_print_matrix(M::CompressedLowerTriangular, r::Integer,
     end
 end
 
-struct CompressedSymmetric{T,S<:AbstractVector{T}} <: AbstractMatrix{T}
-    D::Int64
-    k::Int64
-    vech::S
-end
+CompressedSymmetric(D, k, v) = Symmetric(CompressedLowerTriangular(D, k, v), :L)
 
-function CompressedSymmetric(M::AbstractMatrix, k = 0)
-    T = eltype(M)
-    v = vech(M, k)
-    CompressedSymmetric{T, typeof(v)}(size(M, 1), k, v)
-end
-
-@Zygote.adjoint CompressedSymmetric(D, k, v) =
-    CompressedSymmetric(D, k, v), c -> (0, 0, (1/2)*vech(Symmetric(c), k))
-
-Base.size(M::CompressedSymmetric) = (M.D, M.D)
-
-function Base.getindex(M::CompressedSymmetric, r::Int, c::Int)
-    r, c = max(r, c), min(r, c)
-    (r > M.k && c <= (M.D - M.k) && c <= (r - M.k)) || return zero(eltype(M))
-    s = ((c-1) * c) ÷ 2
-    i = (c-1) * (M.D - M.k) + (r - M.k) - s
-    M.vech[i]
-end
-
-function Base.replace_in_print_matrix(M::CompressedSymmetric, r::Integer,
-                                      c::Integer, s::AbstractString)
-    r, c = max(r, c), min(r, c)
-    if (r > M.k && c <= (M.D - M.k) && c <= (r - M.k))
-        return s
-    else
-        Base.replace_with_centered_mark(s)
-    end
-end

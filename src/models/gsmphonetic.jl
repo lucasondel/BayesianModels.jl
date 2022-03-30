@@ -50,8 +50,6 @@ function _llh(gsm, labels, x::AbstractVector, uTθ)
 end
 
 function loglikelihood(gsm::GSMPhonetic, groups, uTθ)
-    #labels, data = labels_data
-    #sum(_llh.(Ref(gsm), labels, eachcol(data), Ref(uTθ)))
     sum(groups) do labels_data
         (l, s, p), data = labels_data
         L, S, λ̂, σ̂, π̂ = uTθ
